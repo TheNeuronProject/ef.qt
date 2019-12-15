@@ -1,0 +1,25 @@
+# Generated files
+bin/
+gen/
+
+# Log Files
+*.log
+*.log.*
+
+# Temp Files
+*~
+*.*~
+.fuse_*
+yarn.lock
+cache/
+temp/
+
+# Project files
+dist/
+dev/
+
+# node modules
+node_modules/
+
+.DS_Store
+/dist.zip

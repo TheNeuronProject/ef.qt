@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/res">
+        <file>assets/logo.png</file>
+        <file>assets/efqt.png</file>
+    </qresource>
+</RCC>

@@ -1,0 +1,22 @@
+;include "my_widgets.hpp"
+>QMainWindow
+	#windowTitle = ef.qt Starter Template
+	#geometry = 0, 0, 740, 500
+	* This is the centralwidget
+	>QWidget
+		>QVBoxLayout
+			>EFSpacerItem
+				#size = 0, 30
+			>ClickableLabel#logo
+				#text = <img src=':/res/assets/{{logo_filename = logo.png}}' />
+				#alignment = Qt::AlignCenter
+				@clicked = logo_clicked
+			>QLabel
+				#text = <h1>ef.qt{{awesome_text}}</h1>
+				#alignment = Qt::AlignCenter
+			>QLabel
+				#text = Project template for ef.qt. Please refer to <a href='https://github.com/TheNeuronProject/ef.qt'>Github repo</a> for full documentation.
+				#alignment = Qt::AlignCenter
+				#openExternalLinks = true
+			>EFSpacerItem
+				#sizePolicy = QSizePolicy::Minimum, QSizePolicy::Expanding

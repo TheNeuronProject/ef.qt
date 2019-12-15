@@ -1,0 +1,40 @@
+{
+  "name": "ef.qt",
+  "version": "0.1.0-alpha",
+  "description": "ef.qt cli tools",
+  "main": "main.js",
+  "bin": {
+    "efqt": "bin.js"
+  },
+  "scripts": {
+    "generate": "bin.js generate",
+    "init": "bin.js init"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheNeuronProject/ef.qt.git"
+  },
+  "keywords": [
+    "template",
+    "framework",
+    "ef",
+    "ef.js",
+    "qt"
+  ],
+  "author": "ClassicOldSong",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/TheNeuronProject/ef.qt/issues"
+  },
+  "homepage": "https://github.com/TheNeuronProject/ef.qt",
+  "devDependencies": {
+    "eslint": "^6.0.1"
+  },
+  "dependencies": {
+    "camelcase": "^5.3.1",
+    "eft-parser": "^0.9.6",
+    "fs-extra": "^8.1.0",
+    "walk": "^2.3.14",
+    "yargs": "^15.0.2"
+  }
+}
