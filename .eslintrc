@@ -109,7 +109,7 @@
         ],
         "lines-around-comment": "error",
         "lines-around-directive": "off",
-        "max-depth": "error",
+        "max-depth": "off",
         "max-len": "off",
         "max-lines": "off",
         "max-nested-callbacks": "error",

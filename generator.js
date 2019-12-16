@@ -6,17 +6,19 @@ const fs = require('fs-extra')
 const path = require('path')
 const walk = require('walk')
 
-const STRPROPS = ['windowTitle', 'text', 'placeholderText']
-const BOOLPROPS = ['checked', 'enabled']
-const FLOATPROPS = []
-const DOUBLEPROPS = []
+const STRPROPS = new Set(['windowTitle', 'text', 'placeholderText'])
+const BOOLPROPS = new Set(['checked', 'enabled', 'openExternalLinks'])
+const FLOATPROPS = new Set([])
+const DOUBLEPROPS = new Set([])
+
+const typeDefRegex = /^\((.+?)\)/
 
 const T = {
-	STRING: 'EFString',
-	BOOL: 'EFNumber<bool>',
-	FLOAT: 'EFNumber<float>',
-	DOUBLE: 'EFNumber<double>',
-	INT: 'EFNumber<int>'
+	STRING: 'EFVar<QString>',
+	BOOL: 'EFVar<bool>',
+	FLOAT: 'EFVar<float>',
+	DOUBLE: 'EFVar<double>',
+	INT: 'EFVar<int>'
 }
 
 const B = {
@@ -27,38 +29,58 @@ const B = {
 	[T.INT]: 'int'
 }
 
+const U = {
+	'string': [T.STRING, B[T.STRING]],
+	'bool': [T.BOOL, B[T.BOOL]],
+	'float': [T.FLOAT, B[T.FLOAT]],
+	'double': [T.DOUBLE, B[T.DOUBLE]],
+	'int': [T.INT, B[T.INT]]
+}
+
 const getTypeDef = (propName) => {
-	if (STRPROPS.indexOf(propName) >= 0) return T.STRING
-	if (BOOLPROPS.indexOf(propName) >= 0) return T.BOOL
-	if (FLOATPROPS.indexOf(propName) >= 0) return T.FLOAT
-	if (DOUBLEPROPS.indexOf(propName) >= 0) return T.DOUBLE
+	if (STRPROPS.has(propName)) return T.STRING
+	if (BOOLPROPS.has(propName)) return T.BOOL
+	if (FLOATPROPS.has(propName)) return T.FLOAT
+	if (DOUBLEPROPS.has(propName)) return T.DOUBLE
 	return T.INT
 }
 
 const getBaseType = type => B[type]
 
-const isStringProp = propName => STRPROPS.indexOf(propName) >= 0
+const getUserType = (type) => {
+	if (U[type]) return U[type]
+	return [`EFVar<${type}>`, `const ${type}&`]
+}
+
+const isStringProp = propName => STRPROPS.has(propName)
 
 const capitalizeFirstCharacter = lower => lower.charAt(0).toUpperCase() + lower.substring(1)
+
+const parseVarName = (varpath) => {
+	const [firstVar, ...vars] = varpath
+	const typeMatch = firstVar.match(typeDefRegex)
+	if (typeMatch) return [[firstVar.replace(typeDefRegex, ''), ...vars].join('.'), getUserType(typeMatch[1])]
+	else return [varpath.join('.'), null]
+}
 
 const getDynamicArgs = (propName, prop) => {
 	const [strs, ...vars] = prop
 	if (strs === 0) {
-		const [varname] = vars[0]
-		return `*$data.${varname.join('.')}`
+		const [varpath] = vars[0]
+		return `*$data.${parseVarName(varpath)[0]}`
 	}
 
 	const stringProp = isStringProp(propName)
 
 	const args = []
 	for (let i = 0; i < vars.length; i++) {
-		const [varname] = vars[i]
+		const [varpath] = vars[i]
 		const str = strs[i]
 		if (str !== '') {
 			if (stringProp) args.push(`tr("${str}")`)
 			else args.push(str)
 		}
-		args.push(`*$data.${varname.join('.')}`)
+		args.push(`*$data.${parseVarName(varpath)[0]}`)
 	}
 	if (strs[vars.length] !== '') {
 		if (stringProp) args.push(`tr("${strs[vars.length]}")`)
@@ -80,10 +102,23 @@ const walkProps = ({props, innerName, $props, $data}) => {
 
 			// store handlers for variable
 			const [, ...vars] = prop
-			for (let [varname, defaultVal] of vars) {
-				if (!$data[varname]) $data[varname] = {
-					type: getTypeDef(propName), // TBD: get type from qt header
-					handlers: []
+			for (let [varpath, defaultVal] of vars) {
+				const [varname, userType] = parseVarName(varpath)
+				if (!$data[varname]) {
+					if (userType) {
+						$data[varname] = {
+							type: userType,
+							handlers: []
+						}
+					} else {
+						const type = getTypeDef(propName)
+						const baseType = getBaseType(type)
+
+						$data[varname] = {
+							type: [type, baseType],
+							handlers: []
+						}
+					}
 				}
 
 				if (typeof defaultVal !== 'undefined') $data[varname].default = defaultVal
@@ -136,10 +171,10 @@ const walkAst = ({$ast, $parent, $parentLayout, $data, $refs, $methods, $mountin
 }
 
 const generate$data = ($data) => {
-	// varname: {type, default, handlers}
+	// varname: {type: [eftype, basetype], default, handlers}
 	const strs = []
 	for (let [varname, {type}] of Object.entries($data)) {
-		strs.push(`${type} ${varname};`)
+		strs.push(`${type[0]} ${varname};`)
 	}
 	return strs
 }
@@ -224,6 +259,7 @@ const generate$widgetInitialization = ($widgets) => {
 				else strs.push(`${innerName} = new ${type}(${parent});`)
 
 				if (`${widgetTypeMap[parent]}`.indexOf('Window') >= 0) strs.push(`${parent}->setCentralWidget(${innerName});`)
+				else if (`${widgetTypeMap[parent]}`.indexOf('Scroll') >= 0) strs.push(`${parent}->setWidget(${innerName});`)
 				else if (type.indexOf('Layout') >= 0) strs.push(`${parent}->setLayout(${innerName});`)
 				else if (parentLayout && type.indexOf('Spacer') >= 0) strs.push(`${parentLayout}->addItem(${innerName});`)
 				else if (parentLayout) strs.push(`${parentLayout}->addWidget(${innerName});`)
@@ -245,10 +281,10 @@ const generate$refsInitialization = ($refs) => {
 }
 
 const generate$valueSubscribers = ($data) => {
-	// varname: {type, default, handlers}
+	// varname: {type: [eftype, basetype], default, handlers}
 	const strs = []
 	for (let [varname, {type, handlers}] of Object.entries($data)) {
-		strs.push(`$data.${varname}.subscribe(std::make_shared<std::function<void(${getBaseType(type)})>>(
+		strs.push(`$data.${varname}.subscribe(std::make_shared<std::function<void(${type[1]})>>(
 				[this](auto _){
 					${handlers.join(`
 					`)}
@@ -272,7 +308,7 @@ const generate$dataInitialization = ($data) => {
 	const strs = []
 	for (let [varname, {type, default: defaultVal}] of Object.entries($data)) {
 		if (typeof defaultVal !== 'undefined') {
-			if (type === 'EFString') strs.push(`$data.${varname} = tr("${defaultVal}");`)
+			if (type[0].toLowerCase().indexOf('string') >= 0) strs.push(`$data.${varname} = tr("${defaultVal}");`)
 			else strs.push(`$data.${varname} = ${defaultVal};`)
 		}
 	}
@@ -428,7 +464,7 @@ ${resultList.join('\n')}
 `
 }
 
-const fileWalker = (dir = '.', outFile = 'ef.hpp', excludes = []) => {
+const fileWalker = ({dir = '.', outFile = 'ef.hpp', excludes = []}) => {
 	const realOutPath = path.resolve(outFile)
 	const files = []
 	const walker = walk.walk(dir, {
