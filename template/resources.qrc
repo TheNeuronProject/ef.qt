@@ -2,5 +2,6 @@
     <qresource prefix="/res">
         <file>assets/logo.png</file>
         <file>assets/efqt.png</file>
+        <file>assets/icon.png</file>
     </qresource>
 </RCC>
