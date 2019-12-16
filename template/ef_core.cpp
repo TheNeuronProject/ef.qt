@@ -15,67 +15,179 @@
 
 using namespace ef::core;
 
-void EFString::__call_subscribers() {
-	for (auto &it : subscribers) {
-		(*it)(_raw);
-	}
-}
-
-void EFString::subscribe(const std::shared_ptr<std::function<void(const QString &)>> &__callback) {
-	subscribers.emplace_back(__callback);
-	(*subscribers.back())(_raw);
+EFSpacerItem::EFSpacerItem(int __w, int __h, QSizePolicy::Policy __hp, QSizePolicy::Policy __vp) :
+	QSpacerItem(__w, __h, __hp, __vp) {
 
 }
 
-void EFString::unsubscribe(const std::shared_ptr<std::function<void(const QString &)>> &__callback) {
-	for (size_t i=0; i<subscribers.size(); i++) {
-		if (subscribers[i] == __callback) {
-			subscribers.erase(subscribers.begin() + i);
-			return;
+void EFSpacerItem::setSizePolicy(QSizePolicy::Policy __hp, QSizePolicy::Policy __vp) {
+	hp = __hp;
+	vp = __vp;
+	changeSize(_width, _height, hp, vp);
+}
+
+void EFSpacerItem::setSize(int w, int h) {
+	_width = w;
+	_height = h;
+	changeSize(_width, _height, hp, vp);
+}
+
+size_t EFMountingPoint::placeholder_index() {
+	for (size_t i=0; i<parent_layout->count(); i++) {
+		if (parent_layout->itemAt(i)->widget() == placeholder_widget) {
+			return i;
 		}
 	}
+
+	throw std::logic_error("placeholder not found in parent layout");
 }
 
-EFString &EFString::operator=(const char *__str) {
-	_raw = QString::fromUtf8(__str);
-	__call_subscribers();
+void EFMountingPoint::__set_widget(QWidget *__pw) {
+	parent_layout = (QBoxLayout *)__pw->layout();
+	parent_widget = __pw;
+	placeholder_widget = new QFrame(parent_widget);
+	if (parent_layout)
+		parent_layout->addWidget(placeholder_widget);
+	placeholder_widget->hide();
+}
+
+void EFMountingPoint::mount(QWidget *__w) {
+	if (parent_widget == __w) {
+		throw std::logic_error("self can't be its child");
+	}
+
+	if (mounted_widget == __w) {
+		qDebug("efqt warning: mounting same widget");
+		return;
+	}
+
+	unmount();
+
+	__w->setParent(parent_widget);
+	parent_layout->insertWidget(placeholder_index(), __w);
+	mounted_widget = __w;
+}
+
+void EFMountingPoint::unmount() {
+	if (mounted_widget){
+		parent_layout->removeWidget(mounted_widget);
+		mounted_widget->setParent(nullptr);
+		mounted_widget = nullptr;
+	}
+}
+
+EFMountingPoint &EFMountingPoint::operator=(QWidget *__w) {
+	if (__w)
+		mount(__w);
+	else
+		unmount();
+
 	return *this;
 }
 
-EFString &EFString::operator=(const QByteArray &__arr) {
-	_raw = QString::fromUtf8(__arr);
-	__call_subscribers();
-	return *this;
+size_t EFListMountingPoint::placeholder_index() {
+	for (size_t i=0; i<parent_layout->count(); i++) {
+		if (parent_layout->itemAt(i)->widget() == placeholder_widget) {
+			return i;
+		}
+	}
+
+	throw std::logic_error("placeholder not found in parent layout");
 }
 
-EFString &EFString::operator=(char __c) {
-	_raw = QChar::fromLatin1(__c);
-	__call_subscribers();
-	return *this;
+bool EFListMountingPoint::widget_precheck(QWidget *__w) {
+	if (parent_widget == __w) {
+		throw std::logic_error("self can't be its child");
+	}
+
+
+	for (auto &it : mounted_widget) {
+		if (it == __w) {
+			qDebug("efqt warning: mounting same widget");
+			return false;
+		}
+	}
+
+	return true;
 }
 
-EFString &EFString::operator=(QChar __c) {
-	_raw = __c;
-	__call_subscribers();
-	return *this;
+void EFListMountingPoint::__set_widget(QWidget *__pw) {
+	parent_layout = (QBoxLayout *)__pw->layout();
+	parent_widget = __pw;
+	placeholder_widget = new QFrame(parent_widget);
+	if (parent_layout)
+		parent_layout->addWidget(placeholder_widget);
+	placeholder_widget->hide();
 }
 
-EFString &EFString::operator=(const QString &__str) {
-	_raw = __str;
-	__call_subscribers();
-	return *this;
+void EFListMountingPoint::push_back(QWidget *__w) {
+	if (!widget_precheck(__w))
+		return;
+
+	__w->setParent(parent_widget);
+	parent_layout->insertWidget(placeholder_index(), __w);
+	mounted_widget.emplace_back(__w);
 }
 
-EFString &EFString::operator=(const EFString &__efs) {
-	_raw = __efs._raw;
-	__call_subscribers();
-	return *this;
+void EFListMountingPoint::push_front(QWidget *__w) {
+	if (!widget_precheck(__w))
+		return;
+
+	__w->setParent(parent_widget);
+	parent_layout->insertWidget(placeholder_index() - mounted_widget.size(), __w);
+	mounted_widget.emplace_front(__w);
 }
 
-bool EFString::operator==(const EFString &__other) const {
-	return _raw == __other._raw;
+void EFListMountingPoint::pop_back() {
+	if (!mounted_widget.empty()) {
+		auto &it = mounted_widget.back();
+		if (parent_layout)
+			parent_layout->removeWidget(it);
+		it->setParent(nullptr);
+		mounted_widget.pop_back();
+	}
 }
 
-bool EFString::operator!=(const EFString &__other) const {
-	return _raw != __other._raw;
+void EFListMountingPoint::pop_front() {
+	if (!mounted_widget.empty()) {
+		auto &it = mounted_widget.front();
+		if (parent_layout)
+			parent_layout->removeWidget(it);
+		it->setParent(nullptr);
+		mounted_widget.pop_front();
+	}
+}
+
+void EFListMountingPoint::insert(size_t __idx, QWidget *__w) {
+	if (__idx > mounted_widget.size()) {
+		throw std::logic_error("");
+	}
+
+	if (!widget_precheck(__w))
+		return;
+
+	__w->setParent(parent_widget);
+	parent_layout->insertWidget(placeholder_index() - mounted_widget.size() + __idx, __w);
+	mounted_widget.insert(mounted_widget.begin() + __idx, __w);
+}
+
+void EFListMountingPoint::erase(size_t __idx) {
+	if (__idx < mounted_widget.size()) {
+		auto &it = mounted_widget[__idx];
+		if (parent_layout)
+			parent_layout->removeWidget(it);
+		it->setParent(nullptr);
+		mounted_widget.erase(mounted_widget.begin() + __idx);
+	}
+}
+
+void EFListMountingPoint::erase_widget(QWidget *__w) {
+	for (size_t i=0; i<mounted_widget.size(); i++) {
+		if (mounted_widget[i] == __w) {
+			mounted_widget.erase(mounted_widget.begin() + i);
+		}
+	}
+
+	parent_layout->removeWidget(__w);
+	__w->setParent(nullptr);
 }

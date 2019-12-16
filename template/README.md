@@ -1,6 +1,9 @@
-# Usage
+# ef.qt Starter Template
+This is a starter template for ef.qt. Modify anything for your very own need.
 
-## Using cmake
+## How to build
+
+### Using cmake
 
 ```shell script
 # generate ef.hpp
@@ -18,7 +21,7 @@ make -j `nproc`
 ./efqt_starter_template
 ```
 
-## Using qmake
+### Using qmake
 
 ```shell script
 # generate ef.hpp

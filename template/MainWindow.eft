@@ -1,6 +1,7 @@
 ;include "my_widgets.hpp"
 >QMainWindow
 	#windowTitle = ef.qt Starter Template
+	#windowIcon = QIcon(":/res/assets/icon.png")
 	#geometry = 0, 0, 740, 500
 	* This is the centralwidget
 	>QWidget
