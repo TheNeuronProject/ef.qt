@@ -56,11 +56,12 @@ const isStringProp = propName => STRPROPS.has(propName)
 
 const capitalizeFirstCharacter = lower => lower.charAt(0).toUpperCase() + lower.substring(1)
 
+// [varname, usertype, customized]
 const parseVarName = (varpath) => {
 	const [firstVar, ...vars] = varpath
 	const typeMatch = firstVar.match(typeDefRegex)
-	if (typeMatch) return [[firstVar.replace(typeDefRegex, ''), ...vars].join('.'), getUserType(typeMatch[1])]
-	else return [varpath.join('.'), null]
+	if (typeMatch) return [[firstVar.replace(typeDefRegex, ''), ...vars].join('.'), getUserType(typeMatch[1]), true]
+	else return [varpath.join('.'), null, false]
 }
 
 const getDynamicArgs = (propName, prop) => {
@@ -103,7 +104,7 @@ const walkProps = ({props, innerName, $props, $data}) => {
 			// store handlers for variable
 			const [, ...vars] = prop
 			for (let [varpath, defaultVal] of vars) {
-				const [varname, userType] = parseVarName(varpath)
+				const [varname, userType, customized] = parseVarName(varpath)
 				if (!$data[varname]) {
 					if (userType) {
 						$data[varname] = {
@@ -121,6 +122,7 @@ const walkProps = ({props, innerName, $props, $data}) => {
 					}
 				}
 
+				if (customized) $data[varname].type = userType
 				if (typeof defaultVal !== 'undefined') $data[varname].default = defaultVal
 				$data[varname].handlers.push(handler)
 			}
