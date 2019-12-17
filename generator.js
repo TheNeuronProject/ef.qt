@@ -6,7 +6,7 @@ const fs = require('fs-extra')
 const path = require('path')
 const walk = require('walk')
 
-const STRPROPS = new Set(['windowTitle', 'text', 'placeholderText'])
+const STRPROPS = new Set(['windowTitle', 'text', 'placeholderText', 'title', 'currentText'])
 const BOOLPROPS = new Set(['checked', 'enabled', 'openExternalLinks'])
 const FLOATPROPS = new Set([])
 const DOUBLEPROPS = new Set([])
@@ -56,11 +56,12 @@ const isStringProp = propName => STRPROPS.has(propName)
 
 const capitalizeFirstCharacter = lower => lower.charAt(0).toUpperCase() + lower.substring(1)
 
+// [varname, usertype, customized]
 const parseVarName = (varpath) => {
 	const [firstVar, ...vars] = varpath
 	const typeMatch = firstVar.match(typeDefRegex)
-	if (typeMatch) return [[firstVar.replace(typeDefRegex, ''), ...vars].join('.'), getUserType(typeMatch[1])]
-	else return [varpath.join('.'), null]
+	if (typeMatch) return [[firstVar.replace(typeDefRegex, ''), ...vars].join('.'), getUserType(typeMatch[1]), true]
+	else return [varpath.join('.'), null, false]
 }
 
 const getDynamicArgs = (propName, prop) => {
@@ -103,7 +104,7 @@ const walkProps = ({props, innerName, $props, $data}) => {
 			// store handlers for variable
 			const [, ...vars] = prop
 			for (let [varpath, defaultVal] of vars) {
-				const [varname, userType] = parseVarName(varpath)
+				const [varname, userType, customized] = parseVarName(varpath)
 				if (!$data[varname]) {
 					if (userType) {
 						$data[varname] = {
@@ -121,6 +122,7 @@ const walkProps = ({props, innerName, $props, $data}) => {
 					}
 				}
 
+				if (customized) $data[varname].type = userType
 				if (typeof defaultVal !== 'undefined') $data[varname].default = defaultVal
 				$data[varname].handlers.push(handler)
 			}
@@ -415,7 +417,7 @@ const checkIncludes = (source, $includes) => {
 	}
 }
 
-const compile = ({fileName, dirName, source}, $includes) => {
+const compile = ({className, nameSpace, source}, $includes) => {
 	const $data = {} // varname: {type, default, handlers}
 	const $refs = [] // {type, innerName, *name}
 	const $methods = [] // {innerName, innerMethodName, type, signalName, args: [type, type], handlerName}
@@ -424,8 +426,6 @@ const compile = ({fileName, dirName, source}, $includes) => {
 	const $props = {} // innerPropName: {innerName, propName, data || handler}
 	const $widgets = [] // {type, parent, parentLayout, innerName} || {mountpoint: bool, name, parent}
 
-	const className = camelCase(fileName, {pascalCase: true})
-	const nameSpace = dirName === '.' ? null : dirName.replace(/^\.(\\|\/)/, '').replace(/\\|\//g, '::')
 	const ast = parseEft(source)
 
 	checkIncludes(source, $includes)
@@ -464,25 +464,38 @@ ${resultList.join('\n')}
 `
 }
 
-const fileWalker = ({dir = '.', outFile = 'ef.hpp', excludes = []}) => {
+const fileWalker = ({dir, outFile, ignores}, {verbose, dryrun}) => {
 	const realOutPath = path.resolve(outFile)
+
+	if (verbose || dryrun) console.log('[V] Output file full path:', outFile)
+
 	const files = []
 	const walker = walk.walk(dir, {
 		followLinks: true,
-		filters: ['node_modules', ...excludes]
+		filters: ['node_modules', ...ignores]
 	})
 
 	walker.on('file', (root, fileStats, next) => {
 		if (['.ef', '.eft', '.efml'].indexOf(path.extname(fileStats.name)) >= 0) {
 			const filePath = path.join(root, fileStats.name)
+			if (verbose || dryrun) console.log('[V] Reading file:', filePath)
 			fs.readFile(filePath, 'utf8', (err, source) => {
 				if (err) throw err
 				console.log('Processing', filePath, '...')
 
 				const fileName = fileStats.name.split('.')[0]
 				const dirName = path.relative(dir, root)
+				const className = camelCase(fileName, {pascalCase: true})
+				const nameSpace = dirName === '.' ? null : dirName.replace(/^\.(\\|\/)/, '').replace(/\\|\//g, '::')
 
-				files.push({fileName, dirName, source})
+				if (verbose || dryrun) {
+					console.log('[V] File name:', fileName)
+					console.log('[V] Relative dir:', dirName)
+					console.log('[V] Generated class name:', className)
+					console.log('[V] Generated namesace:', nameSpace)
+				}
+
+				files.push({className, nameSpace, source})
 
 				next()
 			})
@@ -490,15 +503,48 @@ const fileWalker = ({dir = '.', outFile = 'ef.hpp', excludes = []}) => {
 	})
 
 	walker.on('end', () => {
+		if (verbose || dryrun) console.log('[V] Generating header file to:', realOutPath)
+		if (dryrun) {
+			console.log('All done.')
+			console.log(`All templates are NOT generated in \`${realOutPath}'.  (--dryrun)`)
+			return
+		}
 		fs.ensureDir(path.dirname(realOutPath), (err) => {
 			if (err) throw err
 			fs.outputFile(realOutPath, generate(files), (err) => {
 				if (err) throw err
 				console.log('All done.')
-				console.log(`Code has been generated in \`${realOutPath}'.`)
+				console.log(`All templates are generated in \`${realOutPath}'.`)
 			})
 		})
 	})
 }
 
-module.exports = fileWalker
+const entry = ({dir = '.', outFile = 'ef.hpp', ignores = [], extraTypeDef = '.eftypedef'}, {verbose, dryrun}) => {
+	if (verbose || dryrun) {
+		console.log('[V] Scan dir:', dir)
+		console.log('[V] Output file:', outFile)
+		console.log('[V] Ignored folder(s):', ignores)
+		console.log('[V] Extra param type def:', extraTypeDef)
+	}
+
+	if (extraTypeDef) {
+		if (verbose || dryrun) console.log('[V] Reading extra param type def:', extraTypeDef)
+		fs.readJson(extraTypeDef, (err, def) => {
+			if (err) {
+				if ((extraTypeDef === '.eftypedef' && err.code !== 'ENOENT') || extraTypeDef !== '.eftypedef') throw err
+				if (verbose || dryrun) console.log('[V] Default extra param type def read failed, skipped')
+			} else {
+				if (def.STRPROPS) for (let i of def.STRPROPS) STRPROPS.add(i)
+				if (def.BOOLPROPS) for (let i of def.BOOLPROPS) BOOLPROPS.add(i)
+				if (def.FLOATPROPS) for (let i of def.FLOATPROPS) FLOATPROPS.add(i)
+				if (def.DOUBLEPROPS) for (let i of def.DOUBLEPROPS) DOUBLEPROPS.add(i)
+			}
+
+
+			fileWalker({dir, outFile, ignores}, {verbose, dryrun})
+		})
+	} else fileWalker({dir, outFile, ignores}, {verbose, dryrun})
+}
+
+module.exports = entry
