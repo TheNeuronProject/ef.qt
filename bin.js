@@ -21,7 +21,7 @@ yargs
 		type: 'bool'
 	})
 }, (argv) => {
-	init(argv.dest, !!argv.overwrite)
+	init(argv.dest, !!argv.overwrite, {verbose: argv.verbose, dryrun: argv.dryrun})
 })
 .command('generate', 'scan templates and generate C++ code', (yargs) => {
 	yargs
@@ -46,12 +46,33 @@ yargs
 		describe: 'folders to be ignored during scan',
 		type: 'array'
 	})
+	.option('e', {
+		alias: 'extra',
+		demandOption: false,
+		default: '.eftypedef',
+		describe: 'Extra param type definition',
+		type: 'string'
+	})
 }, (argv) => {
-	generate({dir: argv.dir, outFile: argv.output, ignores: argv.ignore})
+	generate({dir: argv.dir, outFile: argv.output, ignores: argv.ignore, extraTypeDef: argv.extra}, {verbose: argv.verbose, dryrun: argv.dryrun})
+})
+.option('v', {
+	alias: 'verbose',
+	demandOption: false,
+	describe: 'show verbose log',
+	type: 'bool'
+})
+.option('D', {
+	alias: 'dryrun',
+	demandOption: false,
+	describe: 'do everything but real modifications',
+	type: 'bool'
 })
 .help('h')
 .alias('h', 'help')
 .demandCommand()
 .recommendCommands()
 .strict()
+.completion()
+.config()
 .parse()
