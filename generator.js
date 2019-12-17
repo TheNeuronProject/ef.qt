@@ -480,7 +480,7 @@ const fileWalker = ({dir = '.', outFile = 'ef.hpp', excludes = []}) => {
 				console.log('Processing', filePath, '...')
 
 				const fileName = fileStats.name.split('.')[0]
-				const dirName = root
+				const dirName = path.relative(dir, root)
 
 				files.push({fileName, dirName, source})
 
