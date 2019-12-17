@@ -53,6 +53,7 @@ npm r -g ef.qt
 git clone 'https://github.com/TheNeuronProject/ef.qt'
 
 # install locally
+cd ef.qt
 npm i -g .
 ```
 
