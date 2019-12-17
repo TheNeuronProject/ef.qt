@@ -29,6 +29,10 @@ Install `node` if not installed already. Personally I recommend using [n-install
 Then
 
 ```shell script
+# if installed from elsewhere, first remove with
+npm r -g ef.qt
+
+# install brand new or update
 npm i -g 'https://github.com/TheNeuronProject/ef.qt'
 
 # Init a new project in current directory
@@ -39,6 +43,20 @@ efqt generate
 ```
 
 For more usage please see `efqt --help`
+
+## Development
+```shell script
+# if installed from elsewhere, first remove with
+npm r -g ef.qt
+
+# clone the repository
+git clone 'https://github.com/TheNeuronProject/ef.qt'
+
+# install locally
+npm i -g .
+```
+
+and you are good to go. No need for re-install after modification, it works out of the box.
 
 ## Documentation
 TBD, refer to created template for now. Also [ef.js.org](https://ef.js.org) may help understanding the EFML language syntax and basic concept of ef frameworks.
