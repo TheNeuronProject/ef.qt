@@ -47,7 +47,7 @@ yargs
 		type: 'array'
 	})
 }, (argv) => {
-	generate(argv.dir, argv.output, argv.ignore)
+	generate({dir: argv.dir, outFile: argv.output, ignores: argv.ignore})
 })
 .help('h')
 .alias('h', 'help')
