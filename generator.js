@@ -148,10 +148,10 @@ const walkAst = ({$ast, $parent, $parentLayout, $data, $refs, $methods, $mountin
 	if (Array.isArray($ast)) {
 		// handle widget
 		const [self, ...children] = $ast
-		const {t: type, r: ref, a: props, e: signals} = self
+		const {t: type, r: ref, a: props, e: signals, p: extraProps} = self
 
 		const innerName = `__widget_${$widgets.length}`
-		$widgets.push({type, parent: $parent, parentLayout: $parentLayout, innerName})
+		$widgets.push({type, parent: $parent, parentLayout: $parentLayout, extraProps: extraProps || {}, innerName})
 		if (type.indexOf('Q') === 0) $includes[`<${type}>`] = true
 		if (ref) $refs.push({type, innerName, name: ref})
 
@@ -213,7 +213,7 @@ const generate$mountingpoints = ($mountingpoints) => {
 }
 
 const generate$widgetsDefinitation = ($widgets) => {
-	// {type, parent, parentLayout, innerName} || {mountpoint: bool, name}
+	// {type, parent, parentLayout, extraProps, innerName} || {mountpoint: bool, name}
 	const strs = []
 	for (let widget of $widgets) {
 		if (!widget.mountpoint) {
@@ -245,28 +245,98 @@ const generate$handlers = ($methods) => {
 	return strs
 }
 
+const guseeWidgetClass = (widgetName) => {
+	widgetName = widgetName.toLowerCase()
+	if (widgetName.indexOf('item') >= 0 || widgetName.indexOf('item') >= 0) return 'Item'
+	if (widgetName.indexOf('layout') >= 0) return 'Layout'
+	return 'Widget'
+}
+
+const generate$childInitialization = ({strs, type, widgetClass, previousLayer, previousLayerType, extraProps, innerName}) => {
+	if (!previousLayer) return
+
+	const [previousWidgetType, previousClass] = previousLayerType
+	let method = 'add'
+	let params = ''
+	// extraProps.params && `${innerName}, ${extraProps.params}` || innerName
+
+	switch (previousClass) {
+		case 'Item':
+			throw new TypeError(`Item ${type} cannot have children.`)
+		case 'Layout':
+			if (previousWidgetType === 'QGridLayout') {
+				const [,, index, width] = previousLayerType
+				if (!width && !extraProps.position) throw new SyntaxError('QGridLayout must have `width\' attribure ro children of QGridLayout must have `position\' attribute.')
+				previousLayerType[2] += 1
+
+				if (extraProps.position) params = `${innerName}, ${extraProps.position}`
+				else {
+					let row = Math.floor(index / width)
+					let col = index - row * width
+
+					params = `${innerName}, ${row}, ${col}`
+				}
+			} else if (previousWidgetType === 'QFormLayout') {
+				method = 'set'
+				if (extraProps.position) params = `${extraProps.position}, ${innerName}`
+				else {
+					const [,, index, position] = previousLayerType
+					const role = position && 'QFormLayout::ItemRole::LabelRole' || 'QFormLayout::ItemRole::FieldRole'
+
+					if (!position) previousLayerType[2] += 1
+					previousLayerType[3] = !previousLayerType[3]
+
+					params = `${index}, ${role}, ${innerName}`
+				}
+			} else params = innerName
+			break
+		case 'Widget':
+			if (widgetClass === 'Layout') {
+				method = 'set'
+				params = innerName
+			} else return
+			break
+		default:
+	}
+
+	strs.push(`${previousLayer}->${method}${widgetClass}(${params});`)
+}
+
 const generate$widgetInitialization = ($widgets) => {
-	// {type, parent, parentLayout, innerName} || {mountpoint: bool, name}
+	// {type, parent, parentLayout, extraProps, innerName} || {mountpoint: bool, name}
 	const strs = []
-	const widgetTypeMap = {}
+	const widgetTypeMap = {} // [type, class, (index, position) || (index, width)]
+
+	let topInitialized = false
+
 	for (let widget of $widgets) {
 		if (widget.mountpoint) {
 			const {name, parent} = widget
 			strs.push(`${name}.__set_widget(${parent});`)
 		} else {
-			const {type, parent, parentLayout, innerName} = widget
-			widgetTypeMap[innerName] = type
-			if (parent) {
-				if (type.indexOf('Spacer') >= 0) strs.push(`${innerName} = new ${type}(0, 0);`)
-				else strs.push(`${innerName} = new ${type}(${parent});`)
+			const {type, parent, parentLayout, extraProps, innerName} = widget
+			const previousLayer = parentLayout || parent
+			const previousLayerType = widgetTypeMap[previousLayer] || []
+			const widgetClass = guseeWidgetClass(type)
+			const typeInfo = [type, widgetClass]
+			widgetTypeMap[innerName] = typeInfo
 
-				if (`${widgetTypeMap[parent]}`.indexOf('Window') >= 0) strs.push(`${parent}->setCentralWidget(${innerName});`)
-				else if (`${widgetTypeMap[parent]}`.indexOf('Scroll') >= 0) strs.push(`${parent}->setWidget(${innerName});`)
-				else if (type.indexOf('Layout') >= 0) strs.push(`${parent}->setLayout(${innerName});`)
-				else if (parentLayout && type.indexOf('Spacer') >= 0) strs.push(`${parentLayout}->addItem(${innerName});`)
-				else if (parentLayout) strs.push(`${parentLayout}->addWidget(${innerName});`)
+			if (type === 'QFormLayout') {
+				typeInfo[2] = 0
+				typeInfo[3] = true
+			} else if (type === 'QGridLayout' && extraProps.width) {
+				typeInfo[2] = 0
+				typeInfo[3] = extraProps.width
+			}
+
+			if (topInitialized) {
+				if (type.indexOf('Spacer') >= 0) strs.push(`${innerName} = new ${type}(0, 0);`)
+				else strs.push(`${innerName} = new ${type}(${parent || ''});`)
+
+				generate$childInitialization({strs, type, widgetClass, previousLayer, previousLayerType, extraProps, innerName})
 			} else {
 				strs.push(`${innerName} = this;`)
+				topInitialized = true
 			}
 		}
 	}
@@ -424,7 +494,7 @@ const compile = ({className, nameSpace, source}, $includes) => {
 	const $mountingpoints = [] // {list: bool, parentLayout, name}
 
 	const $props = {} // innerPropName: {innerName, propName, data || handler}
-	const $widgets = [] // {type, parent, parentLayout, innerName} || {mountpoint: bool, name, parent}
+	const $widgets = [] // {type, parent, parentLayout, extraProps, innerName} || {mountpoint: bool, name, parent}
 
 	const ast = parseEft(source)
 
