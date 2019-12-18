@@ -331,6 +331,7 @@ const generate$widgetInitialization = ($widgets) => {
 
 			if (topInitialized) {
 				if (type.indexOf('Spacer') >= 0) strs.push(`${innerName} = new ${type}(0, 0);`)
+				else if (previousLayerType[1] === 'Layout' && widgetClass === 'Layout') strs.push(`${innerName} = new ${type}();`)
 				else strs.push(`${innerName} = new ${type}(${parent || ''});`)
 
 				generate$childInitialization({strs, type, widgetClass, previousLayer, previousLayerType, extraProps, innerName})
