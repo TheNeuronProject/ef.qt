@@ -507,11 +507,16 @@ const compile = ({className, nameSpace, source}, $includes) => {
 	const $props = {} // innerPropName: {innerName, propName, data || handler}
 	const $widgets = [] // {type, parent, parentLayout, extraProps, innerName} || {mountpoint: bool, name, parent}
 
-	const ast = parseEft(source)
+	try {
+		const ast = parseEft(source)
 
-	checkIncludes(source, $includes)
-	walkAst({$ast: ast, $parent: null, $parentLayout: null, $data, $refs, $methods, $mountingpoints, $props, $widgets, $includes})
-	return generateClass({className, nameSpace, $data, $refs, $methods, $mountingpoints, $props, $widgets})
+		checkIncludes(source, $includes)
+		walkAst({$ast: ast, $parent: null, $parentLayout: null, $data, $refs, $methods, $mountingpoints, $props, $widgets, $includes})
+		return generateClass({className, nameSpace, $data, $refs, $methods, $mountingpoints, $props, $widgets})
+	} catch (e) {
+		if (e.message === 'Failed to parse eft template: Template required, but nothing given. at line -1') return ''
+		throw e
+	}
 }
 
 const generate$includes = ($includes) => {
@@ -545,7 +550,7 @@ ${resultList.join('\n')}
 `
 }
 
-const fileWalker = ({dir, outFile, ignores}, {verbose, dryrun}) => {
+const fileWalker = ({dir, outFile, ignores, callback}, {verbose, dryrun}) => {
 	const realOutPath = path.resolve(outFile)
 
 	if (verbose || dryrun) console.log('[V] Output file full path:', outFile)
@@ -561,7 +566,7 @@ const fileWalker = ({dir, outFile, ignores}, {verbose, dryrun}) => {
 			const filePath = path.join(root, fileStats.name)
 			if (verbose || dryrun) console.log('[V] Reading file:', filePath)
 			fs.readFile(filePath, 'utf8', (err, source) => {
-				if (err) throw err
+				if (err) return console.error(err)
 				console.log('Processing', filePath, '...')
 
 				const fileName = fileStats.name.split('.')[0]
@@ -591,17 +596,23 @@ const fileWalker = ({dir, outFile, ignores}, {verbose, dryrun}) => {
 			return
 		}
 		fs.ensureDir(path.dirname(realOutPath), (err) => {
-			if (err) throw err
-			fs.outputFile(realOutPath, generate(files), (err) => {
-				if (err) throw err
-				console.log('All done.')
-				console.log(`All templates are generated in \`${realOutPath}'.`)
-			})
+			if (err) return console.error(err)
+
+			try {
+				fs.outputFile(realOutPath, generate(files), (err) => {
+					if (err) return console.error(err)
+					console.log('All done.')
+					console.log(`All templates are generated in \`${realOutPath}'.`)
+					if (callback) return callback()
+				})
+			} catch (e) {
+				return console.error(e)
+			}
 		})
 	})
 }
 
-const entry = ({dir = '.', outFile = 'ef.hpp', ignores = [], extraTypeDef = '.eftypedef'}, {verbose, dryrun}) => {
+const entry = ({dir = '.', outFile = 'ef.hpp', ignores = [], extraTypeDef = '.eftypedef', callback}, {verbose, dryrun}) => {
 	if (verbose || dryrun) {
 		console.log('[V] Scan dir:', dir)
 		console.log('[V] Output file:', outFile)
@@ -613,7 +624,7 @@ const entry = ({dir = '.', outFile = 'ef.hpp', ignores = [], extraTypeDef = '.ef
 		if (verbose || dryrun) console.log('[V] Reading extra param type def:', extraTypeDef)
 		fs.readJson(extraTypeDef, (err, def) => {
 			if (err) {
-				if ((extraTypeDef === '.eftypedef' && err.code !== 'ENOENT') || extraTypeDef !== '.eftypedef') throw err
+				if ((extraTypeDef === '.eftypedef' && err.code !== 'ENOENT') || extraTypeDef !== '.eftypedef') return console.error(err)
 				if (verbose || dryrun) console.log('[V] Default extra param type def read failed, skipped')
 			} else {
 				if (def.STRPROPS) for (let i of def.STRPROPS) STRPROPS.add(i)
@@ -622,10 +633,9 @@ const entry = ({dir = '.', outFile = 'ef.hpp', ignores = [], extraTypeDef = '.ef
 				if (def.DOUBLEPROPS) for (let i of def.DOUBLEPROPS) DOUBLEPROPS.add(i)
 			}
 
-
-			fileWalker({dir, outFile, ignores}, {verbose, dryrun})
+			return fileWalker({dir, outFile, ignores, callback}, {verbose, dryrun})
 		})
-	} else fileWalker({dir, outFile, ignores}, {verbose, dryrun})
+	} else return fileWalker({dir, outFile, ignores, callback}, {verbose, dryrun})
 }
 
 module.exports = entry

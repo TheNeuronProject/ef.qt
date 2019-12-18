@@ -4,6 +4,7 @@
 const yargs = require('yargs')
 
 const generate = require('./generator.js')
+const watcher = require('./watcher.js')
 const init = require('./creator.js')
 
 yargs
@@ -54,7 +55,62 @@ yargs
 		type: 'string'
 	})
 }, (argv) => {
-	generate({dir: argv.dir, outFile: argv.output, ignores: argv.ignore, extraTypeDef: argv.extra}, {verbose: argv.verbose, dryrun: argv.dryrun})
+	generate({
+		dir: argv.dir,
+		outFile: argv.output,
+		ignores: argv.ignore,
+		extraTypeDef: argv.extra
+	}, {
+		verbose: argv.verbose,
+		dryrun: argv.dryrun
+	})
+})
+.command('watch [dir]', 'watch template file change and re-generate immediately', (yargs) => {
+	yargs
+	.positional('dir', {
+		describe: 'directory to watch',
+		default: '.',
+		type: 'string'
+	}).
+	option('d', {
+		alias: 'debounce',
+		demandOption: false,
+		default: 1,
+		describe: 'debounce time before re-generate in seconds',
+		type: 'number'
+	})
+	.option('o', {
+		alias: 'output',
+		demandOption: false,
+		default: 'ef.hpp',
+		describe: 'output file for generated code',
+		type: 'string'
+	})
+	.option('i', {
+		alias: 'ignore',
+		demandOption: false,
+		default: [],
+		describe: 'folders to be ignored during scan',
+		type: 'array'
+	})
+	.option('e', {
+		alias: 'extra',
+		demandOption: false,
+		default: '.eftypedef',
+		describe: 'Extra param type definition',
+		type: 'string'
+	})
+}, (argv) => {
+	watcher({
+		dir: argv.dir,
+		debounce: argv.debounce,
+		outFile: argv.output,
+		ignores: argv.ignore,
+		extraTypeDef: argv.extra
+	}, {
+		verbose: argv.verbose,
+		dryrun: argv.dryrun
+	})
 })
 .option('v', {
 	alias: 'verbose',

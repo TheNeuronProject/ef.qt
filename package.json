@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "camelcase": "^5.3.1",
+    "chokidar": "^3.3.1",
     "eft-parser": "^0.9.6",
     "fs-extra": "^8.1.0",
     "walk": "^2.3.14",

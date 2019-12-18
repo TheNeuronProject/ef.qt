@@ -58,6 +58,9 @@ git clone 'https://github.com/TheNeuronProject/ef.qt'
 # Install locally
 cd ef.qt
 npm i -g .
+
+# To update dependencies after a pull or branch switch, do
+npm i
 ```
 
 and you are good to go. No need for re-install after modification, it works out of the box.
