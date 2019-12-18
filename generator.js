@@ -6,8 +6,18 @@ const fs = require('fs-extra')
 const path = require('path')
 const walk = require('walk')
 
-const STRPROPS = new Set(['windowTitle', 'text', 'placeholderText', 'title', 'currentText'])
-const BOOLPROPS = new Set(['checked', 'enabled', 'openExternalLinks'])
+const STRPROPS = new Set([
+	'windowTitle', 'text', 'placeholderText', 'title', 'currentText', 'styleSheet',
+	'statusTip', 'toolTip', 'whatsThis', 'accessibleName', 'accessibleDescription',
+	'windowFilePath', 'windowRole'
+])
+const BOOLPROPS = new Set([
+	'checked', 'enabled', 'openExternalLinks', 'acceptDrops', 'autoFillBackground',
+	'editFocus', 'mouseTracking', 'tabletTracking', 'updatesEnabled', 'disabled',
+	'hidden', 'visible', 'windowModified', 'documentMode', 'animated', 'dockNestingEnabled',
+	'unifiedTitleAndToolBarOnMac', 'defaultUp', 'nativeMenuBar', 'separatorsCollapsible',
+	'tearOffEnabled', 'toolTipsVisible', 'widgetResizable'
+])
 const FLOATPROPS = new Set([])
 const DOUBLEPROPS = new Set([])
 
