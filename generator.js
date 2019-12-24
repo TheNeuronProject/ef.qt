@@ -162,16 +162,18 @@ const walkAst = ({$ast, $parent, $parentLayout, $data, $refs, $methods, $mountin
 
 		const innerName = `__widget_${$widgets.length}`
 		$widgets.push({type, parent: $parent, parentLayout: $parentLayout, extraProps: extraProps || {}, innerName})
-		if (type.indexOf('Q') === 0) $includes[`<${type}>`] = true
+		if (type.startsWith('Q')) $includes.add(type)
 		if (ref) $refs.push({type, innerName, name: ref})
 
 		if (props) walkProps({props, innerName, $props, $data})
 		if (signals) walkSignals({signals, innerName, type, $methods})
 
+		const isLayout = type.includes('Layout')
+
 		for (let i of children) walkAst({
 			$ast: i,
-			$parent: type.indexOf('Layout') < 0 ? innerName : $parent,
-			$parentLayout: type.indexOf('Layout') >= 0 ? innerName : null,
+			$parent: isLayout ? $parent : innerName,
+			$parentLayout: isLayout ? innerName : null,
 			$data, $refs, $methods, $mountingpoints, $props, $widgets, $includes
 		})
 	} else {
@@ -257,8 +259,8 @@ const generate$handlers = ($methods) => {
 
 const guseeWidgetClass = (widgetName) => {
 	widgetName = widgetName.toLowerCase()
-	if (widgetName.indexOf('item') >= 0 || widgetName.indexOf('item') >= 0) return 'Item'
-	if (widgetName.indexOf('layout') >= 0) return 'Layout'
+	if (widgetName.includes('item')) return 'Item'
+	if (widgetName.includes('layout')) return 'Layout'
 	return 'Widget'
 }
 
@@ -340,7 +342,7 @@ const generate$widgetInitialization = ($widgets) => {
 			}
 
 			if (topInitialized) {
-				if (type.indexOf('Spacer') >= 0) strs.push(`${innerName} = new ${type}(0, 0);`)
+				if (type.includes('Spacer')) strs.push(`${innerName} = new ${type}(0, 0);`)
 				else if (previousLayerType[1] === 'Layout' && widgetClass === 'Layout') strs.push(`${innerName} = new ${type}();`)
 				else strs.push(`${innerName} = new ${type}(${parent || ''});`)
 
@@ -391,7 +393,7 @@ const generate$dataInitialization = ($data) => {
 	const strs = []
 	for (let [varname, {type, default: defaultVal}] of Object.entries($data)) {
 		if (typeof defaultVal !== 'undefined') {
-			if (type[0].toLowerCase().indexOf('string') >= 0) strs.push(`$data.${varname} = tr("${defaultVal}");`)
+			if (type[0].toLowerCase().includes('string')) strs.push(`$data.${varname} = tr("${defaultVal}");`)
 			else strs.push(`$data.${varname} = ${defaultVal};`)
 		}
 	}
@@ -410,32 +412,37 @@ const generate$props = ($props) => {
 	return strs
 }
 
-const generateClass = ({className, nameSpace, $data, $refs, $methods, $mountingpoints, $props, $widgets}) => `
-${nameSpace ? `namespace ${nameSpace} {` : ''}
-	class ${className}: public ${$widgets[0].type} {
+const generateClass = ({className, nameSpace, $data, $refs, $methods, $mountingpoints, $props, $widgets}) => {
+	const classBody = `	class ${className}: public ${$widgets[0].type} {
 	public:
+		// Data variables
 		struct {
 			${generate$data($data).join(`
 			`)}
 		} $data;
 
+		// Widget references
 		struct {
 			${generate$refs($refs).join(`
 			`)}
 		} $refs;
 
+		// Signal handling methods
 		struct {
 			${generate$methods($methods, className).join(`
 			`)}
 		} $methods;
 
+		// Mounting Points
 		${generate$mountingpoints($mountingpoints).join(`
 		`)}
 
 	private:
+		// Internal widget names
 		${generate$widgetsDefinitation($widgets).join(`
 		`)}
 
+		// Internal signal handlers
 		${generate$handlers($methods).join(`
 
 		`)}
@@ -457,7 +464,6 @@ ${nameSpace ? `namespace ${nameSpace} {` : ''}
 
 		void __init_methods() {
 			using namespace std::placeholders;
-
 			${generate$methodsInitialization($methods, className).join(`
 			`)}
 		}
@@ -482,23 +488,32 @@ ${nameSpace ? `namespace ${nameSpace} {` : ''}
 			__init_props();
 		}
 	};
-${nameSpace ? '}' : ''}
 `
 
-const checkIncludes = (source, $includes) => {
+	if (nameSpace) return `namespace ${nameSpace}: {
+${classBody}}
+`
+	return classBody
+}
+
+const checkMetadata = (source) => {
 	const lines = source.split(/\r?\n/)
+	const $customIncludes = new Set()
+	let $customNameSpace = null
+	let $customClassName = null
 
 	for (let line of lines) {
 		const lineContent = line.trim()
-		if (lineContent.indexOf('>') === 0) return
-		if (lineContent.indexOf(';include ') === 0) {
-			const include = line.substring(9, line.length)
-			$includes[include] = true
-		}
+		if (lineContent.startsWith('>')) return [$customIncludes, $customNameSpace, $customClassName]
+		if (lineContent.startsWith(';include ')) $customIncludes.add(line.substring(9, line.length))
+		else if (lineContent.startsWith(';namespace ')) $customNameSpace = line.substring(11, line.length)
+		else if (lineContent.startsWith(';classname ')) $customClassName = line.substring(11, line.length)
 	}
+
+	return [$customIncludes, $customNameSpace, $customClassName]
 }
 
-const compile = ({className, nameSpace, source}, $includes) => {
+const compile = ({className, nameSpace, source}) => {
 	const $data = {} // varname: {type, default, handlers}
 	const $refs = [] // {type, innerName, *name}
 	const $methods = [] // {innerName, innerMethodName, type, signalName, args: [type, type], handlerName}
@@ -506,48 +521,103 @@ const compile = ({className, nameSpace, source}, $includes) => {
 
 	const $props = {} // innerPropName: {innerName, propName, data || handler}
 	const $widgets = [] // {type, parent, parentLayout, extraProps, innerName} || {mountpoint: bool, name, parent}
+	const $includes = new Set()
 
 	try {
 		const ast = parseEft(source)
 
-		checkIncludes(source, $includes)
+		const [$customIncludes, $customNameSpace, $customClassName] = checkMetadata(source)
+		if ($customNameSpace !== null) nameSpace = $customNameSpace
+		if ($customClassName !== null) className = $customClassName
+
 		walkAst({$ast: ast, $parent: null, $parentLayout: null, $data, $refs, $methods, $mountingpoints, $props, $widgets, $includes})
-		return generateClass({className, nameSpace, $data, $refs, $methods, $mountingpoints, $props, $widgets})
+
+		return [generateClass({className, nameSpace, $data, $refs, $methods, $mountingpoints, $props, $widgets}), {className, nameSpace, $includes, $customIncludes}]
 	} catch (e) {
-		if (e.message === 'Failed to parse eft template: Template required, but nothing given. at line -1') return ''
+		if (e.message === 'Failed to parse eft template: Template required, but nothing given. at line -1') return ['', {}]
 		throw e
 	}
 }
 
 const generate$includes = ($includes) => {
 	const strs = []
-	for (let include of Object.keys($includes)) {
+	for (let include of $includes) {
 		strs.push(`#include ${include}`)
 	}
 	return strs
 }
 
-const generate = (files) => {
-	const $includes = {}
-	const resultList = files.map(file => compile(file, $includes))
-	return `// Generated by ef.qt on ${(new Date()).toDateString()}
+const generate$classDefs = $results => $results.map(([, {className, nameSpace}]) => {
+	if (nameSpace) return `	namespace ${nameSpace} {
+		class ${className};
+	}`
+	else return `	class ${className};`
+})
+
+const generate$results = $results => $results.map(([result, {nameSpace}]) => {
+	if (nameSpace) return result
+	.split('\n')
+	.map(line => `	${line}`)
+	.join('\n')
+	else return result
+})
+
+const removeTrailingSpaces = source => source
+.split('\n')
+.map(line => line.trimEnd())
+.join('\n')
+
+const generateSingleFile = ($results) => {
+	const includes = new Set()
+	const customIncludes = new Set()
+
+	for (let [, {$includes, $customIncludes}] of $results) {
+		for (let include of $includes) includes.add(include)
+		for (let customInclude of $customIncludes) customIncludes.add(customInclude)
+	}
+
+	return removeTrailingSpaces(`// Generated by ef.qt on ${(new Date()).toDateString()}
 
 #ifndef EFQT_GENERATED_HPP
 #define EFQT_GENERATED_HPP
 
 #include <QtGui>
-${generate$includes($includes).join('\n')}
-
 #include "ef_core.hpp"
+
+namespace ef::ui {
+${generate$classDefs($results).join('\n')}
+}
+
+// Auto generated includes
+${generate$includes(includes).join('\n')}
+// User defined includes
+${generate$includes(customIncludes).join('\n')}
 
 using namespace ef::core;
 
 namespace ef::ui {
-${resultList.join('\n')}
+${generate$results($results).join('\n')}
 }
 
 #endif // EFQT_GENERATED_HPP
-`
+`)
+}
+
+const generate = (files) => {
+	const $results = files.map(file => compile(file))
+	return generateSingleFile($results)
+}
+
+const getClassNameWithNameSpace = (fileName, dirName) => {
+	const className = camelCase(fileName, {pascalCase: true})
+	let nameSpace = ''
+	if (dirName !== '.') nameSpace = dirName
+	.replace(/^\.(\\|\/)/, '')
+	.split(path.sep)
+	.map(i => camelCase(i, {pascalCase: true}))
+	.join('::')
+
+	return [className, nameSpace]
 }
 
 const fileWalker = ({dir, outFile, ignores, callback}, {verbose, dryrun}) => {
@@ -562,7 +632,7 @@ const fileWalker = ({dir, outFile, ignores, callback}, {verbose, dryrun}) => {
 	})
 
 	walker.on('file', (root, fileStats, next) => {
-		if (['.ef', '.eft', '.efml'].indexOf(path.extname(fileStats.name)) >= 0) {
+		if (['.ef', '.eft', '.efml'].includes(path.extname(fileStats.name))) {
 			const filePath = path.join(root, fileStats.name)
 			if (verbose || dryrun) console.log('[V] Reading file:', filePath)
 			fs.readFile(filePath, 'utf8', (err, source) => {
@@ -571,8 +641,7 @@ const fileWalker = ({dir, outFile, ignores, callback}, {verbose, dryrun}) => {
 
 				const fileName = fileStats.name.split('.')[0]
 				const dirName = path.relative(dir, root)
-				const className = camelCase(fileName, {pascalCase: true})
-				const nameSpace = dirName === '.' ? null : dirName.replace(/^\.(\\|\/)/, '').replace(/\\|\//g, '::')
+				const [className, nameSpace] = getClassNameWithNameSpace(fileName, dirName)
 
 				if (verbose || dryrun) {
 					console.log('[V] File name:', fileName)
@@ -612,7 +681,7 @@ const fileWalker = ({dir, outFile, ignores, callback}, {verbose, dryrun}) => {
 	})
 }
 
-const entry = ({dir = '.', outFile = 'ef.hpp', ignores = [], extraTypeDef = '.eftypedef', callback}, {verbose, dryrun}) => {
+const scanEntry = ({dir = '.', outFile = 'ef.hpp', ignores = [], extraTypeDef = '.eftypedef', callback}, {verbose, dryrun}) => {
 	if (verbose || dryrun) {
 		console.log('[V] Scan dir:', dir)
 		console.log('[V] Output file:', outFile)
@@ -638,4 +707,4 @@ const entry = ({dir = '.', outFile = 'ef.hpp', ignores = [], extraTypeDef = '.ef
 	} else return fileWalker({dir, outFile, ignores, callback}, {verbose, dryrun})
 }
 
-module.exports = entry
+module.exports = scanEntry
