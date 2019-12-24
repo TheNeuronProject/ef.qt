@@ -162,7 +162,7 @@ const walkAst = ({$ast, $parent, $parentLayout, $data, $refs, $methods, $mountin
 
 		const innerName = `__widget_${$widgets.length}`
 		$widgets.push({type, parent: $parent, parentLayout: $parentLayout, extraProps: extraProps || {}, innerName})
-		if (type.startsWith('Q')) $includes.add(type)
+		if (type.startsWith('Q')) $includes.add(`<${type}>`)
 		if (ref) $refs.push({type, innerName, name: ref})
 
 		if (props) walkProps({props, innerName, $props, $data})
@@ -413,7 +413,8 @@ const generate$props = ($props) => {
 }
 
 const generateClass = ({className, nameSpace, $data, $refs, $methods, $mountingpoints, $props, $widgets}) => {
-	const classBody = `	class ${className}: public ${$widgets[0].type} {
+	const proto = $widgets[0].type
+	const classBody = `	class ${className}: public ${proto} {
 	public:
 		// Data variables
 		struct {
@@ -478,14 +479,23 @@ const generateClass = ({className, nameSpace, $data, $refs, $methods, $mountingp
 			`)}
 		}
 
-	public:
-		${className}() {
+		void __init() {
 			__init_widgets();
 			__init_refs();
 			__init_value_subscribers();
 			__init_methods();
 			__init_data();
 			__init_props();
+		}
+
+	public:
+		${className}() {
+			__init();
+		}
+
+		template <typename... Args>
+		${className}(Args... __args) : ${proto}::${proto}(std::forward<Args>(__args)...) {
+			__init();
 		}
 	};
 `
