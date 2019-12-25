@@ -494,7 +494,7 @@ const generateClass = ({className, nameSpace, $data, $refs, $methods, $mountingp
 		}
 
 		template <typename... Args>
-		${className}(Args... __args) : ${proto}::${proto}(std::forward<Args>(__args)...) {
+		${className}(Args... __args) : ${proto}::${proto.split('::').pop()}(std::forward<Args>(__args)...) {
 			__init();
 		}
 	};
