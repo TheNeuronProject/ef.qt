@@ -3,7 +3,8 @@
 
 const yargs = require('yargs')
 
-const generate = require('./generator.js')
+const {scanEntry, compileSingleFile} = require('./scanner.js')
+// const generate = require('./generator.js')
 const watcher = require('./watcher.js')
 const init = require('./creator.js')
 
@@ -24,20 +25,31 @@ yargs
 }, (argv) => {
 	init(argv.dest, !!argv.overwrite, {verbose: argv.verbose, dryrun: argv.dryrun})
 })
-.command('generate', 'scan templates and generate C++ code', (yargs) => {
+.command('generate [dir]', 'scan templates and generate C++ code', (yargs) => {
 	yargs
-	.option('d', {
-		alias: 'dir',
-		demandOption: false,
+	.positional('dir', {
 		default: '.',
-		describe: 'scan from which folder',
+		describe: 'which folder to scan from',
 		type: 'string'
 	})
 	.option('o', {
 		alias: 'output',
 		demandOption: false,
 		default: 'ef.hpp',
-		describe: 'output file for generated code',
+		describe: 'output file(or folder with -s) for generated code, default to `.efgenerated/ef\' with -s',
+		type: 'string'
+	})
+	.option('s', {
+		alias: 'seperate',
+		demandOption: false,
+		describe: 'seperate the generated header into headers for each template',
+		type: 'bool'
+	})
+	.option('e', {
+		alias: 'extension',
+		demandOption: false,
+		default: 'hpp',
+		describe: 'generated header file extension, useful with -s',
 		type: 'string'
 	})
 	.option('i', {
@@ -47,19 +59,56 @@ yargs
 		describe: 'folders to be ignored during scan',
 		type: 'array'
 	})
-	.option('e', {
-		alias: 'extra',
+	.option('t', {
+		alias: 'typedef',
 		demandOption: false,
 		default: '.eftypedef',
 		describe: 'Extra param type definition',
 		type: 'string'
 	})
 }, (argv) => {
-	generate({
+	scanEntry({
 		dir: argv.dir,
-		outFile: argv.output,
+		outPath: argv.output,
+		seperate: argv.seperate,
+		extensionName: argv.extension,
 		ignores: argv.ignore,
-		extraTypeDef: argv.extra
+		extraTypeDef: argv.typedef
+	}, {
+		verbose: argv.verbose,
+		dryrun: argv.dryrun
+	})
+})
+.command('compile <input> <output>', 'compile one template to one file', (yargs) => {
+	yargs
+	.positional('input', {
+		describe: 'input file path',
+		type: 'string'
+	})
+	.positional('output', {
+		describe: 'output file path',
+		type: 'string'
+	})
+	.option('b', {
+		alias: 'base',
+		demandOption: false,
+		default: '.',
+		describe: 'Base dir to the input file',
+		type: 'string'
+	})
+	.option('t', {
+		alias: 'typedef',
+		demandOption: false,
+		default: '.eftypedef',
+		describe: 'Extra param type definition',
+		type: 'string'
+	})
+}, (argv) => {
+	compileSingleFile({
+		input: argv.input,
+		output: argv.output,
+		base: argv.base,
+		extraTypeDef: argv.typedef
 	}, {
 		verbose: argv.verbose,
 		dryrun: argv.dryrun
@@ -86,6 +135,19 @@ yargs
 		describe: 'output file for generated code',
 		type: 'string'
 	})
+	.option('s', {
+		alias: 'seperate',
+		demandOption: false,
+		describe: 'seperate the generated header into headers for each template',
+		type: 'bool'
+	})
+	.option('e', {
+		alias: 'extension',
+		demandOption: false,
+		default: 'hpp',
+		describe: 'generated header file extension, useful with -s',
+		type: 'string'
+	})
 	.option('i', {
 		alias: 'ignore',
 		demandOption: false,
@@ -93,8 +155,8 @@ yargs
 		describe: 'folders to be ignored during scan',
 		type: 'array'
 	})
-	.option('e', {
-		alias: 'extra',
+	.option('t', {
+		alias: 'typedef',
 		demandOption: false,
 		default: '.eftypedef',
 		describe: 'Extra param type definition',
@@ -104,7 +166,9 @@ yargs
 	watcher({
 		dir: argv.dir,
 		debounce: argv.debounce,
-		outFile: argv.output,
+		outPath: argv.output,
+		seperate: argv.seperate,
+		extensionName: argv.extension,
 		ignores: argv.ignore,
 		extraTypeDef: argv.extra
 	}, {
