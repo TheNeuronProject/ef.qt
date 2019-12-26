@@ -603,8 +603,7 @@ const generateSingleFile = ($results) => {
 	}
 
 	return removeTrailingSpaces(`
-#ifndef EFQT_GENERATED_HPP
-#define EFQT_GENERATED_HPP
+#pragma once
 
 #include <QtGui>
 #include "ef_core.hpp"
@@ -621,8 +620,6 @@ ${generate$includes(customIncludes).join('\n')}
 using namespace ef::core;
 
 ${generate$results($results).join('\n')}
-
-#endif // EFQT_GENERATED_HPP
 `)
 }
 
