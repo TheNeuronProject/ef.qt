@@ -41,7 +41,7 @@ efqt init
 # Scan and generate cpp code for ef templates
 efqt generate
 
-# Watch file change and auto re-compile
+# Watch file changes and auto re-compile
 efqt watch
 
 # Generate auto completion for shells

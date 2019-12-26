@@ -4,7 +4,7 @@ const generator = require('./generator')
 const fileWatcher = ({dir, debounce, outFile, ignores}, {verbose, dryrun}) => {
 	let debounceTimerID = 0
 
-	const regenerate = callback => generator({dir, outFile, ignores, callback}, {verbose, dryrun})
+	const regenerate = cb => generator({dir, outFile, ignores}, {verbose, dryrun}, cb)
 	const fileUpdated = (file) => {
 		console.log(`Change detected: ${file}`)
 		clearTimeout(debounceTimerID)
