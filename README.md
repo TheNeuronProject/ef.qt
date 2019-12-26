@@ -41,6 +41,9 @@ efqt init
 # Scan and generate cpp code for ef templates
 efqt generate
 
+# Compile one template to one header
+efqt compile
+
 # Watch file changes and auto re-compile
 efqt watch
 
