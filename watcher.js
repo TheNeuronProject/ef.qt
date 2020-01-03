@@ -44,6 +44,7 @@ const getHandlers = ({dir, debounce, outPath, seperate, ignores, extensionName, 
 					dest = _dest
 					currentVersion = _currentVersion
 					firstRun = false
+					console.log('Compile cache generated.')
 				})
 				changedFiles.clear()
 				removedFiles.clear()

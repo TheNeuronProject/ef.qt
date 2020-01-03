@@ -5,7 +5,6 @@ const parseEft = require('eft-parser')
 const crypto = require('crypto')
 const fs = require('fs-extra')
 const path = require('path')
-const walk = require('walk')
 
 const STRPROPS = new Set([
 	'windowTitle', 'text', 'placeholderText', 'title', 'currentText', 'styleSheet',
@@ -565,7 +564,7 @@ const compile = ([filePath, {className, nameSpace, source}]) => {
 			generateClass({filePath, fileHash, className, nameSpace, $customUsings, $data, $refs, $methods, $mountingpoints, $props, $widgets}),
 			{className, nameSpace, $includes, $customIncludes}
 		]]
-	} catch (err) {
+	} catch (e) {
 		if (e.message === 'Failed to parse eft template: Template required, but nothing given. at line -1') return ['', {}]
 		throw e
 	}
@@ -635,7 +634,7 @@ const checkNeedsUpdate = ({files, dest, currentVersion}, {verbose, dryrun}, cb) 
 		const lastVersion = lines.shift().split(' ')[4]
 		if (lastVersion !== currentVersion) {
 			if (verbose || dryrun) console.log(`[V] Last generated ef.qt version ${lastVersion} not match with current version ${currentVersion}, regenerate...`)
-			return cb(null)
+			return cb(null, true)
 		}
 
 		for (let line of lines) {
@@ -671,7 +670,7 @@ ${generateSingleFile($results)}`
 	if (verbose || dryrun) console.log('[V] Writing generated header to:', dest)
 	if (dryrun) {
 		console.log(`Done: Header NOT generated in \`${dest}'.  (--dryrun)`)
-		if (cb) return cb()
+		if (cb) return cb(null, {$results, dest, currentVersion})
 		return
 	}
 
@@ -705,7 +704,7 @@ const generate = ({files, dest}, {verbose, dryrun, watch}, cb) => {
 			}
 			if (watch || needsUpdate) {
 				try {
-					if (cb) return cb(null, {$results: new Map([...files].map(file => compile(file))), dest, currentVersion})
+					if (cb) return cb(null, {$results: new Map([...files].map(file => compile(file))), dest, currentVersion, needsUpdate})
 				} catch (e) {
 					if (cb) return cb(e)
 					return console.error(e)
