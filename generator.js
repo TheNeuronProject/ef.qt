@@ -535,7 +535,7 @@ const checkMetadata = (source) => {
 	return {$customIncludes, $customUsings, $customNameSpace, $customClassName}
 }
 
-const compile = ({className, nameSpace, filePath, source}) => {
+const compile = ([filePath, {className, nameSpace, source}]) => {
 	console.log('Processing', filePath, '...')
 
 	const $data = {} // varname: {type, default, handlers}
@@ -561,11 +561,11 @@ const compile = ({className, nameSpace, filePath, source}) => {
 
 		walkAst({$ast: ast, $parent: null, $parentLayout: null, $data, $refs, $methods, $mountingpoints, $props, $widgets, $includes})
 
-		return [
+		return [filePath, [
 			generateClass({filePath, fileHash, className, nameSpace, $customUsings, $data, $refs, $methods, $mountingpoints, $props, $widgets}),
 			{className, nameSpace, $includes, $customIncludes}
-		]
-	} catch (e) {
+		]]
+	} catch (err) {
 		if (e.message === 'Failed to parse eft template: Template required, but nothing given. at line -1') return ['', {}]
 		throw e
 	}
@@ -579,14 +579,14 @@ const generate$includes = ($includes) => {
 	return strs
 }
 
-const generate$classDefs = $results => $results.map(([, {className, nameSpace}]) => {
+const generate$classDefs = $results => [...$results].map(([, [, {className, nameSpace}]]) => {
 	if (nameSpace) return `	namespace ${nameSpace} {
 		class ${className};
 	}`
 	else return `	class ${className};`
 })
 
-const generate$results = $results => $results.map(([result]) => result)
+const generate$results = $results => [...$results].map(([, [result]]) => result)
 
 const removeTrailingSpaces = source => source
 .split('\n')
@@ -597,7 +597,7 @@ const generateSingleFile = ($results) => {
 	const includes = new Set()
 	const customIncludes = new Set()
 
-	for (let [, {$includes, $customIncludes}] of $results) {
+	for (let [, [, {$includes, $customIncludes}]] of $results) {
 		for (let include of $includes) includes.add(include)
 		for (let customInclude of $customIncludes) customIncludes.add(customInclude)
 	}
@@ -627,7 +627,7 @@ const checkNeedsUpdate = ({files, dest, currentVersion}, {verbose, dryrun}, cb) 
 	const lastSourceHashMap = new Map()
 	fs.readFile(dest, 'utf8', (err, lastGeneratedFile) => {
 		if (err) {
-			if (err.code === 'ENOENT') return cb()
+			if (err.code === 'ENOENT') return cb(null, true)
 			else return console.error(err)
 		}
 
@@ -635,7 +635,7 @@ const checkNeedsUpdate = ({files, dest, currentVersion}, {verbose, dryrun}, cb) 
 		const lastVersion = lines.shift().split(' ')[4]
 		if (lastVersion !== currentVersion) {
 			if (verbose || dryrun) console.log(`[V] Last generated ef.qt version ${lastVersion} not match with current version ${currentVersion}, regenerate...`)
-			return cb()
+			return cb(null)
 		}
 
 		for (let line of lines) {
@@ -646,7 +646,7 @@ const checkNeedsUpdate = ({files, dest, currentVersion}, {verbose, dryrun}, cb) 
 			}
 		}
 
-		for (let {filePath, source} of files) {
+		for (let [filePath, {source}] of files) {
 			const sourceHash = crypto
 			.createHash('md5')
 			.update(source)
@@ -654,11 +654,13 @@ const checkNeedsUpdate = ({files, dest, currentVersion}, {verbose, dryrun}, cb) 
 
 			if (sourceHash !== lastSourceHashMap.get(filePath)) {
 				if (verbose || dryrun) console.log(`[V] Found hash mismatch in \`${filePath}', regenerate...`)
-				return cb()
+				return cb(null, true)
 			}
 		}
 
-		return console.log(`Nothing changed, no need to update \`${dest}'.`)
+		console.log(`Nothing changed, no need to update \`${dest}'.`)
+
+		return cb(null, false)
 	})
 }
 
@@ -674,29 +676,40 @@ ${generateSingleFile($results)}`
 	}
 
 	fs.ensureDir(path.dirname(dest), (err) => {
-		if (err) return console.error(err)
+		if (err) {
+			if (cb) return cb(err)
+			return console.error(err)
+		}
 
 		fs.outputFile(dest, outputContent, (err) => {
-			if (err) return console.error(err)
+			if (err) {
+				if (cb) return cb(err)
+				return console.error(err)
+			}
 			console.log(`Done: Header generated in \`${dest}'.`)
-			if (cb) return cb()
+			if (cb) return cb(null, {$results, dest, currentVersion})
 		})
 	})
 }
 
-const generate = ({files, dest}, {verbose, dryrun}, cb) => {
+const generate = ({files, dest}, {verbose, dryrun, watch}, cb) => {
 	fs.readJson(path.resolve(__dirname, 'package.json'), (err, packageInfo) => {
 		if (err) return console.error(err)
 		const {version} = packageInfo
 		const currentVersion = `v${version}`
 
-		checkNeedsUpdate({files, dest, currentVersion}, {verbose}, () => {
-			try {
-				const $results = files.map(file => compile(file))
-				writeOutput({$results, dest, currentVersion}, {verbose, dryrun}, cb)
-			} catch (e) {
-				if (cb) return cb(e)
-				throw (e)
+		checkNeedsUpdate({files, dest, currentVersion}, {verbose, dryrun}, (err, needsUpdate) => {
+			if (err) {
+				if (cb) return cb(err)
+				return console.error(err)
+			}
+			if (watch || needsUpdate) {
+				try {
+					if (cb) return cb(null, {$results: new Map([...files].map(file => compile(file))), dest, currentVersion})
+				} catch (e) {
+					if (cb) return cb(e)
+					return console.error(e)
+				}
 			}
 		})
 	})
@@ -732,4 +745,4 @@ const loadExtraTypeDef = ({extraTypeDef}, {verbose, dryrun}, cb) => {
 	})
 }
 
-module.exports = {generate, getClassNameWithNameSpace, loadExtraTypeDef}
+module.exports = {compile, generate, getClassNameWithNameSpace, loadExtraTypeDef, writeOutput}

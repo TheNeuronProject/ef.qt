@@ -3,11 +3,7 @@
 const path = require('path')
 const walk = require('walk')
 const fs = require('fs-extra')
-const {
-	generate,
-	getClassNameWithNameSpace,
-	loadExtraTypeDef
-} = require('./generator.js')
+const {generate, getClassNameWithNameSpace, loadExtraTypeDef, writeOutput} = require('./generator.js')
 
 const getSeperatedOutputFilePathWithRightExtension = (filePath, extensionName) => {
 	const fileNameSegments = filePath.split('.')
@@ -16,12 +12,12 @@ const getSeperatedOutputFilePathWithRightExtension = (filePath, extensionName) =
 	return fileNameSegments.join('.')
 }
 
-const fileWalker = ({dir, outPath, seperate, ignores, extensionName}, {verbose, dryrun}, cb) => {
+const fileWalker = ({dir, outPath, seperate, ignores, extensionName}, {verbose, dryrun, watch}, cb) => {
 	const dest = path.resolve(outPath)
 
 	if (verbose || dryrun) console.log('[V] Output full path:', outPath)
 
-	const files = []
+	const files = new Map()
 	const walker = walk.walk(dir, {
 		followLinks: true,
 		filters: ['node_modules', ...ignores]
@@ -47,34 +43,55 @@ const fileWalker = ({dir, outPath, seperate, ignores, extensionName}, {verbose, 
 					console.log('[V] Generated namesace:', nameSpace)
 				}
 
-				files.push({className, nameSpace, filePath, source})
+				files.set(filePath, {className, nameSpace, source})
 
 				next()
 			})
 		} else return next()
 	})
 
+	const writeResults = (e, {$results, dest, currentVersion}) => {
+		if (e) {
+			if (cb) return cb(e)
+			return console.error(e)
+		}
+		if (watch) return cb(null, {$results, dest, currentVersion})
+		return writeOutput({$results, dest, currentVersion}, {verbose, dryrun}, cb)
+	}
+
 	if (seperate) walker.on('end', () => {
 		let doneCount = 0
 
 		const checkEnd = (e) => {
-			if (e) throw e
+			if (e) {
+				if (cb) return cb(e)
+				return console.error(e)
+			}
 			doneCount += 1
-			if (doneCount >= files.length) {
+			if (doneCount >= files.size) {
 				if (cb) return cb()
 				return
 			}
 		}
 
-		for (let file of files) {
-			const outFilePath = getSeperatedOutputFilePathWithRightExtension(file.filePath, extensionName)
-			generate({files: [file], dest: path.join(dest, outFilePath)}, {verbose, dryrun}, checkEnd)
+		const writeAndCheckEnd = (e, {$results, dest, currentVersion}) => {
+			if (e) {
+				if (cb) return cb(e)
+				return console.error(e)
+			}
+			doneCount += 1
+			return writeOutput({$results, dest, currentVersion}, {verbose, dryrun}, checkEnd)
+		}
+
+		for (let [filePath, file] of files) {
+			const outFilePath = getSeperatedOutputFilePathWithRightExtension(filePath, extensionName)
+			generate({files: new Map([[filePath, file]]), dest: path.join(dest, outFilePath)}, {verbose, dryrun}, writeAndCheckEnd)
 		}
 	})
-	else walker.on('end', () => generate({files, dest}, {verbose, dryrun}, cb))
+	else walker.on('end', () => generate({files, dest}, {verbose, dryrun, watch}, writeResults))
 }
 
-const scanEntry = ({dir = '.', outPath = 'ef.hpp', seperate = false, ignores = [], extensionName = 'hpp', extraTypeDef = '.eftypedef'}, {verbose, dryrun}, cb) => {
+const scanEntry = ({dir = '.', outPath = 'ef.hpp', seperate = false, ignores = [], extensionName = 'hpp', extraTypeDef = '.eftypedef'}, {verbose, dryrun, watch}, cb) => {
 	if (seperate && outPath === 'ef.hpp') outPath = '.efgenerated/ef'
 	if (seperate) ignores.push(outPath)
 	if (verbose || dryrun) {
@@ -85,7 +102,7 @@ const scanEntry = ({dir = '.', outPath = 'ef.hpp', seperate = false, ignores = [
 		console.log('[V] Extra param type def:', extraTypeDef)
 	}
 
-	const walkFiles = () => fileWalker({dir, outPath, seperate, ignores, extensionName}, {verbose, dryrun}, cb)
+	const walkFiles = () => fileWalker({dir, outPath, seperate, ignores, extensionName}, {verbose, dryrun, watch}, cb)
 
 	if (extraTypeDef) return loadExtraTypeDef({extraTypeDef}, {verbose, dryrun}, walkFiles)
 	else return walkFiles()
@@ -104,12 +121,20 @@ const compileSingleFile = ({input, output, base, extraTypeDef}, {verbose, dryrun
 		console.log('[V] Generated namesace:', nameSpace)
 	}
 
+	const writeResults = (e, {$results, dest, currentVersion}) => {
+		if (e) {
+			if (cb) return cb(e)
+			return console.error(e)
+		}
+		return writeOutput({$results, dest, currentVersion}, {verbose, dryrun}, cb)
+	}
+
 	const compileFile = () => {
 		fs.readFile(input, 'utf8', (err, source) => {
 			if (err) return console.error(err)
 
-			const files = [{className, nameSpace, filePath, source}]
-			generate({files, dest: output}, {verbose, dryrun}, cb)
+			const files = new Map([[filePath, {className, nameSpace, source}]])
+			generate({files, dest: output}, {verbose, dryrun}, writeResults)
 		})
 	}
 
