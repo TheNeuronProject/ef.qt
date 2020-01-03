@@ -33,7 +33,7 @@ Then
 npm r -g ef.qt
 
 # Install brand new or update
-npm i -g 'https://github.com/TheNeuronProject/ef.qt'
+npm i -g ef.qt
 
 # Init a new project in current directory
 efqt init
