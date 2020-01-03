@@ -50,13 +50,13 @@ const fileWalker = ({dir, outPath, seperate, ignores, extensionName}, {verbose, 
 		} else return next()
 	})
 
-	const writeResults = (e, {$results, dest, currentVersion}) => {
+	const writeResults = (e, {$results, dest, currentVersion, needsUpdate}) => {
 		if (e) {
 			if (cb) return cb(e)
 			return console.error(e)
 		}
-		if (watch) return cb(null, {$results, dest, currentVersion})
-		return writeOutput({$results, dest, currentVersion}, {verbose, dryrun}, cb)
+		if (needsUpdate) return writeOutput({$results, dest, currentVersion}, {verbose, dryrun}, cb)
+		return cb(null, {$results, dest, currentVersion})
 	}
 
 	if (seperate) walker.on('end', () => {
