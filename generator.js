@@ -18,6 +18,7 @@ const BOOLPROPS = new Set([
 	'unifiedTitleAndToolBarOnMac', 'defaultUp', 'nativeMenuBar', 'separatorsCollapsible',
 	'tearOffEnabled', 'toolTipsVisible', 'widgetResizable'
 ])
+const VIRTUAL_WIDGET_CLASSES = new Set(['EFSeparator'])
 const FLOATPROPS = new Set([])
 const DOUBLEPROPS = new Set([])
 
@@ -102,6 +103,20 @@ const getDynamicArgs = (propName, prop) => {
 	else return args.join('')
 }
 
+const guseeWidgetClass = (widgetName) => {
+	const [actualWidgetName, manualOverrided] = widgetName.split(':')
+	if (manualOverrided) return [actualWidgetName, manualOverrided]
+
+	const loweredWidgetName = actualWidgetName.toLowerCase()
+	if (loweredWidgetName.includes('item')) return [actualWidgetName, 'Item']
+	if (loweredWidgetName.includes('layout')) return [actualWidgetName, 'Layout']
+	if (loweredWidgetName.includes('action')) return [actualWidgetName, 'Action']
+	if (loweredWidgetName.includes('efseparator')) return [actualWidgetName, 'EFSeparator']
+	if (loweredWidgetName.includes('menubar')) return [actualWidgetName, 'MenuBar']
+	if (loweredWidgetName.includes('menu')) return [actualWidgetName, 'Menu']
+	return [actualWidgetName, 'Widget']
+}
+
 const walkProps = ({props, innerName, $props, $data}) => {
 	for (let [propName, prop] of Object.entries(props)) {
 		const innerPropName = `__${innerName}_${propName}`
@@ -161,9 +176,10 @@ const walkAst = ({$ast, $parent, $parentLayout, $data, $refs, $methods, $mountin
 		const {t: type, r: ref, a: props, e: signals, p: extraProps} = self
 
 		const innerName = `__widget_${$widgets.length}`
-		$widgets.push({type, parent: $parent, parentLayout: $parentLayout, extraProps: extraProps || {}, innerName})
+		const [actualWidgetName, widgetClass] = guseeWidgetClass(type)
+		$widgets.push({type: actualWidgetName, parent: $parent, parentLayout: $parentLayout, extraProps: extraProps || {}, innerName, widgetClass})
 		if (type.startsWith('Q')) $includes.add(`<${type}>`)
-		if (ref) $refs.push({type, innerName, name: ref})
+		if (ref) $refs.push({type, innerName, name: ref, widgetClass})
 
 		if (props) walkProps({props, innerName, $props, $data})
 		if (signals) walkSignals({signals, innerName, type, $methods})
@@ -202,10 +218,10 @@ const generate$data = ($data) => {
 }
 
 const generate$refs = ($refs) => {
-	// {type, innerName, *name}
+	// {type, innerName, *name, widgetClass}
 	const strs = []
-	for (let {type, name} of $refs) {
-		strs.push(`${type} *${name};`)
+	for (let {type, name, widgetClass} of $refs) {
+		if (!VIRTUAL_WIDGET_CLASSES.has(widgetClass)) strs.push(`${type} *${name};`)
 	}
 	return strs
 }
@@ -233,12 +249,12 @@ const generate$mountingpoints = ($mountingpoints) => {
 }
 
 const generate$widgetsDefinitation = ($widgets) => {
-	// {type, parent, parentLayout, extraProps, innerName} || {mountpoint: bool, name}
+	// {type, parent, parentLayout, extraProps, innerName, widgetClass} || {mountpoint: bool, name}
 	const strs = []
 	for (let widget of $widgets) {
 		if (!widget.mountpoint) {
-			const {type, innerName} = widget
-			strs.push(`${type} *${innerName};`)
+			const {type, innerName, widgetClass} = widget
+			if (!VIRTUAL_WIDGET_CLASSES.has(widgetClass)) strs.push(`${type} *${innerName};`)
 		}
 	}
 	return strs
@@ -263,17 +279,6 @@ const generate$handlers = ($methods) => {
 	}
 
 	return strs
-}
-
-const guseeWidgetClass = (widgetName) => {
-	widgetName = widgetName.toLowerCase()
-	if (widgetName.includes('item')) return 'Item'
-	if (widgetName.includes('layout')) return 'Layout'
-	if (widgetName.includes('action')) return 'Action'
-	if (widgetName.includes('efseperator')) return 'EFSeparator'
-	if (widgetName.includes('menubar')) return 'MenuBar'
-	if (widgetName.includes('menu')) return 'Menu'
-	return 'Widget'
 }
 
 const generate$childInitialization = ({strs, widgetClass, previousLayer, previousLayerType, extraProps, innerName}) => {
@@ -348,10 +353,9 @@ const generate$widgetInitialization = ($widgets) => {
 			const {name, parent} = widget
 			strs.push(`${name}.__set_widget(${parent});`)
 		} else {
-			const {type, parent, parentLayout, extraProps, innerName} = widget
+			const {type, parent, parentLayout, extraProps, innerName, widgetClass} = widget
 			const previousLayer = parentLayout || parent
 			const previousLayerType = widgetTypeMap[previousLayer] || []
-			const widgetClass = guseeWidgetClass(type)
 			const typeInfo = [type, widgetClass]
 			widgetTypeMap[innerName] = typeInfo
 
@@ -364,11 +368,11 @@ const generate$widgetInitialization = ($widgets) => {
 			}
 
 			if (topInitialized) {
-				if (type === 'EFSeparator') {
-					// Do nothing
-				} else if (type.includes('Spacer')) strs.push(`${innerName} = new ${type}(0, 0);`)
-				else if (previousLayerType[1] === 'Layout' && widgetClass === 'Layout') strs.push(`${innerName} = new ${type}();`)
-				else strs.push(`${innerName} = new ${type}(${parent || ''});`)
+				if (!VIRTUAL_WIDGET_CLASSES.has(widgetClass)) {
+					if (type.includes('Spacer')) strs.push(`${innerName} = new ${type}(0, 0);`)
+					else if (previousLayerType[1] === 'Layout' && widgetClass === 'Layout') strs.push(`${innerName} = new ${type}();`)
+					else strs.push(`${innerName} = new ${type}(${parent || ''});`)
+				}
 
 				generate$childInitialization({strs, type, widgetClass, previousLayer, previousLayerType, extraProps, innerName})
 			} else {
@@ -381,10 +385,10 @@ const generate$widgetInitialization = ($widgets) => {
 }
 
 const generate$refsInitialization = ($refs) => {
-	// {type, innerName, *name}
+	// {type, innerName, *name, widgetClass}
 	const strs = []
-	for (let {innerName, name} of $refs) {
-		strs.push(`$refs.${name} = ${innerName};`)
+	for (let {innerName, name, widgetClass} of $refs) {
+		if (!VIRTUAL_WIDGET_CLASSES.has(widgetClass)) strs.push(`$refs.${name} = ${innerName};`)
 	}
 	return strs
 }
@@ -554,12 +558,12 @@ const compile = ([filePath, {className, nameSpace, source}]) => {
 	console.log('Processing', filePath, '...')
 
 	const $data = {} // varname: {type, default, handlers}
-	const $refs = [] // {type, innerName, *name}
+	const $refs = [] // {type, innerName, *name, widgetClass}
 	const $methods = [] // {innerName, innerMethodName, type, signalName, args: [type, type], handlerName}
 	const $mountingpoints = [] // {list: bool, parentLayout, name}
 
 	const $props = {} // innerPropName: {innerName, propName, data || handler}
-	const $widgets = [] // {type, parent, parentLayout, extraProps, innerName} || {mountpoint: bool, name, parent}
+	const $widgets = [] // {type, parent, parentLayout, extraProps, innerName, widgetClass} || {mountpoint: bool, name, parent}
 	const $includes = new Set()
 
 	const fileHash = crypto
