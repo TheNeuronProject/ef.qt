@@ -326,7 +326,7 @@ const generate$childInitialization = ({strs, widgetClass, previousLayer, previou
 		case 'Menu':
 			if (widgetClass === 'EFSeperator') {
 				widgetClass = 'Seperator'
-			} else if (['Menu', 'Action'].indexOf(widgetClass)) {
+			} else if (['Menu', 'Action'].indexOf(widgetClass) >= 0) {
 				params = innerName
 			} else return
 			break
