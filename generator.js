@@ -269,10 +269,14 @@ const guseeWidgetClass = (widgetName) => {
 	widgetName = widgetName.toLowerCase()
 	if (widgetName.includes('item')) return 'Item'
 	if (widgetName.includes('layout')) return 'Layout'
+	if (widgetName.includes('action')) return 'Action'
+	if (widgetName.includes('efseperator')) return 'EFSeperator'
+	if (widgetName.includes('menubar')) return 'MenuBar'
+	if (widgetName.includes('menu')) return 'Menu'
 	return 'Widget'
 }
 
-const generate$childInitialization = ({strs, type, widgetClass, previousLayer, previousLayerType, extraProps, innerName}) => {
+const generate$childInitialization = ({strs, widgetClass, previousLayer, previousLayerType, extraProps, innerName}) => {
 	if (!previousLayer) return
 
 	const [previousWidgetType, previousClass] = previousLayerType
@@ -282,7 +286,9 @@ const generate$childInitialization = ({strs, type, widgetClass, previousLayer, p
 
 	switch (previousClass) {
 		case 'Item':
-			throw new TypeError(`Item ${type} cannot have children.`)
+		case 'Action':
+		case 'Seperator':
+			return
 		case 'Layout':
 			if (previousWidgetType === 'QGridLayout') {
 				const [,, index, width] = previousLayerType
@@ -313,6 +319,14 @@ const generate$childInitialization = ({strs, type, widgetClass, previousLayer, p
 		case 'Widget':
 			if (widgetClass === 'Layout') {
 				method = 'set'
+				params = innerName
+			} else return
+			break
+		case 'MenuBar':
+		case 'Menu':
+			if (widgetClass === 'EFSeperator') {
+				widgetClass = 'Seperator'
+			} else if (['Menu', 'Action'].indexOf(widgetClass)) {
 				params = innerName
 			} else return
 			break
@@ -350,7 +364,9 @@ const generate$widgetInitialization = ($widgets) => {
 			}
 
 			if (topInitialized) {
-				if (type.includes('Spacer')) strs.push(`${innerName} = new ${type}(0, 0);`)
+				if (type === 'EFSeperator') {
+					// Do nothing
+				} else if (type.includes('Spacer')) strs.push(`${innerName} = new ${type}(0, 0);`)
 				else if (previousLayerType[1] === 'Layout' && widgetClass === 'Layout') strs.push(`${innerName} = new ${type}();`)
 				else strs.push(`${innerName} = new ${type}(${parent || ''});`)
 

@@ -112,7 +112,8 @@ const fileWatcher = ({dir, debounce, outPath, seperate, ignores, extensionName, 
 
 	const watcher = chokidar.watch(['**/*.ef', '**/*.eft', '**/*.efml'], {
 		cwd: dir,
-		ignored: ignores
+		ignored: ignores,
+		followSymlinks: false
 	})
 
 	watcher
