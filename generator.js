@@ -270,7 +270,7 @@ const guseeWidgetClass = (widgetName) => {
 	if (widgetName.includes('item')) return 'Item'
 	if (widgetName.includes('layout')) return 'Layout'
 	if (widgetName.includes('action')) return 'Action'
-	if (widgetName.includes('efseperator')) return 'EFSeperator'
+	if (widgetName.includes('efseperator')) return 'EFSeparator'
 	if (widgetName.includes('menubar')) return 'MenuBar'
 	if (widgetName.includes('menu')) return 'Menu'
 	return 'Widget'
@@ -287,7 +287,7 @@ const generate$childInitialization = ({strs, widgetClass, previousLayer, previou
 	switch (previousClass) {
 		case 'Item':
 		case 'Action':
-		case 'Seperator':
+		case 'Separator':
 			return
 		case 'Layout':
 			if (previousWidgetType === 'QGridLayout') {
@@ -324,8 +324,8 @@ const generate$childInitialization = ({strs, widgetClass, previousLayer, previou
 			break
 		case 'MenuBar':
 		case 'Menu':
-			if (widgetClass === 'EFSeperator') {
-				widgetClass = 'Seperator'
+			if (widgetClass === 'EFSeparator') {
+				widgetClass = 'Separator'
 			} else if (['Menu', 'Action'].indexOf(widgetClass) >= 0) {
 				params = innerName
 			} else return
@@ -364,7 +364,7 @@ const generate$widgetInitialization = ($widgets) => {
 			}
 
 			if (topInitialized) {
-				if (type === 'EFSeperator') {
+				if (type === 'EFSeparator') {
 					// Do nothing
 				} else if (type.includes('Spacer')) strs.push(`${innerName} = new ${type}(0, 0);`)
 				else if (previousLayerType[1] === 'Layout' && widgetClass === 'Layout') strs.push(`${innerName} = new ${type}();`)
