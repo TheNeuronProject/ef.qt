@@ -104,7 +104,7 @@ const getDynamicArgs = (propName, prop) => {
 }
 
 const guseeWidgetClass = (widgetName) => {
-	const [actualWidgetName, manualOverrided] = widgetName.split(':')
+	const [actualWidgetName, manualOverrided] = widgetName.split('!')
 	if (manualOverrided) return [actualWidgetName, manualOverrided]
 
 	const loweredWidgetName = actualWidgetName.toLowerCase()
