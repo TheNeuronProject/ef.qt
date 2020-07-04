@@ -21,6 +21,7 @@ const BOOLPROPS = new Set([
 const VIRTUAL_WIDGET_CLASSES = new Set(['EFSeparator'])
 const FLOATPROPS = new Set([])
 const DOUBLEPROPS = new Set([])
+const NOAUTOINCLUDES = new Set([])
 
 const typeDefRegex = /^\((.+?)\)/
 
@@ -178,13 +179,13 @@ const walkAst = ({$ast, $parent, $parentLayout, $data, $refs, $methods, $mountin
 		const innerName = `__widget_${$widgets.length}`
 		const [actualWidgetName, widgetClass] = guseeWidgetClass(type)
 		$widgets.push({type: actualWidgetName, parent: $parent, parentLayout: $parentLayout, extraProps: extraProps || {}, innerName, widgetClass})
-		if (type.startsWith('Q')) $includes.add(`<${type}>`)
-		if (ref) $refs.push({type, innerName, name: ref, widgetClass})
+		if (actualWidgetName.startsWith('Q') && !NOAUTOINCLUDES.has(actualWidgetName)) $includes.add(`<${actualWidgetName}>`)
+		if (ref) $refs.push({actualWidgetName, innerName, name: ref, widgetClass})
 
 		if (props) walkProps({props, innerName, $props, $data})
-		if (signals) walkSignals({signals, innerName, type, $methods})
+		if (signals) walkSignals({signals, innerName, actualWidgetName, $methods})
 
-		const isLayout = type.includes('Layout')
+		const isLayout = actualWidgetName.includes('Layout')
 
 		for (let i of children) walkAst({
 			$ast: i,
@@ -746,22 +747,23 @@ const getClassNameWithNameSpace = (fileName, dirName) => {
 	return [className, nameSpace]
 }
 
-const loadExtraTypeDef = ({extraTypeDef}, {verbose, dryrun}, cb) => {
-	if (verbose || dryrun) console.log('[V] Reading extra param type def:', extraTypeDef)
+const loadExtraConfig = ({extraConfig}, {verbose, dryrun}, cb) => {
+	if (verbose || dryrun) console.log('[V] Reading extra config:', extraConfig)
 
-	fs.readJson(extraTypeDef, (err, def) => {
+	fs.readJson(extraConfig, (err, def) => {
 		if (err) {
-			if ((extraTypeDef === '.eftypedef' && err.code !== 'ENOENT') || extraTypeDef !== '.eftypedef') return console.error(err)
-			if (verbose || dryrun) console.log('[V] Default extra param type def read failed, skipped')
+			if ((extraConfig === '.efextraconfig' && err.code !== 'ENOENT') || extraConfig !== '.efextraconfig') return console.error(err)
+			if (verbose || dryrun) console.log('[V] Default extra config read failed, skipped')
 		} else {
 			if (def.STRPROPS) for (let i of def.STRPROPS) STRPROPS.add(i)
 			if (def.BOOLPROPS) for (let i of def.BOOLPROPS) BOOLPROPS.add(i)
 			if (def.FLOATPROPS) for (let i of def.FLOATPROPS) FLOATPROPS.add(i)
 			if (def.DOUBLEPROPS) for (let i of def.DOUBLEPROPS) DOUBLEPROPS.add(i)
+			if (def.NOAUTOINCLUDES) for (let i of def.NOAUTOINCLUDES) NOAUTOINCLUDES.add(i)
 		}
 
 		return cb()
 	})
 }
 
-module.exports = {compile, generate, getClassNameWithNameSpace, loadExtraTypeDef, writeOutput}
+module.exports = {compile, generate, getClassNameWithNameSpace, loadExtraConfig, writeOutput}

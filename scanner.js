@@ -3,7 +3,7 @@
 const path = require('path')
 const walk = require('walk')
 const fs = require('fs-extra')
-const {generate, getClassNameWithNameSpace, loadExtraTypeDef, writeOutput} = require('./generator.js')
+const {generate, getClassNameWithNameSpace, loadExtraConfig, writeOutput} = require('./generator.js')
 
 const getSeperatedOutputFilePathWithRightExtension = (filePath, extensionName) => {
 	const fileNameSegments = filePath.split('.')
@@ -91,7 +91,7 @@ const fileWalker = ({dir, outPath, seperate, ignores, extensionName}, {verbose, 
 	else walker.on('end', () => generate({files, dest}, {verbose, dryrun, watch}, writeResults))
 }
 
-const scanEntry = ({dir = '.', outPath = 'ef.hpp', seperate = false, ignores = [], extensionName = 'hpp', extraTypeDef = '.eftypedef'}, {verbose, dryrun, watch}, cb) => {
+const scanEntry = ({dir = '.', outPath = 'ef.hpp', seperate = false, ignores = [], extensionName = 'hpp', extraConfig = '.efextraconfig'}, {verbose, dryrun, watch}, cb) => {
 	if (seperate && outPath === 'ef.hpp') outPath = '.efgenerated/ef'
 	if (seperate) ignores.push(outPath)
 	if (verbose || dryrun) {
@@ -99,16 +99,16 @@ const scanEntry = ({dir = '.', outPath = 'ef.hpp', seperate = false, ignores = [
 		console.log('[V] Output path:', outPath)
 		console.log('[V] Seperate headers:', seperate)
 		console.log('[V] Ignored folder(s):', ignores)
-		console.log('[V] Extra param type def:', extraTypeDef)
+		console.log('[V] Extra param type def:', extraConfig)
 	}
 
 	const walkFiles = () => fileWalker({dir, outPath, seperate, ignores, extensionName}, {verbose, dryrun, watch}, cb)
 
-	if (extraTypeDef) return loadExtraTypeDef({extraTypeDef}, {verbose, dryrun}, walkFiles)
+	if (extraConfig) return loadExtraConfig({extraConfig}, {verbose, dryrun}, walkFiles)
 	else return walkFiles()
 }
 
-const compileSingleFile = ({input, output, base, extraTypeDef}, {verbose, dryrun}, cb) => {
+const compileSingleFile = ({input, output, base, extraConfig}, {verbose, dryrun}, cb) => {
 	const fileName = path.basename(input, path.extname(input))
 	const dirName = path.relative(base, path.dirname(input))
 	const filePath = path.relative(base, input)
@@ -138,7 +138,7 @@ const compileSingleFile = ({input, output, base, extraTypeDef}, {verbose, dryrun
 		})
 	}
 
-	if (extraTypeDef) return loadExtraTypeDef({extraTypeDef}, {verbose, dryrun}, compileFile)
+	if (extraConfig) return loadExtraConfig({extraConfig}, {verbose, dryrun}, compileFile)
 	else return compileFile()
 }
 

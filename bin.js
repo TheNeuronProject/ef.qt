@@ -59,11 +59,11 @@ yargs
 		describe: 'folders to be ignored during scan',
 		type: 'array'
 	})
-	.option('t', {
-		alias: 'typedef',
+	.option('c', {
+		alias: 'extra-config',
 		demandOption: false,
-		default: '.eftypedef',
-		describe: 'Extra param type definition',
+		default: '.efextraconfig',
+		describe: 'Extra compiling config',
 		type: 'string'
 	})
 }, (argv) => {
@@ -73,7 +73,7 @@ yargs
 		seperate: argv.seperate,
 		extensionName: argv.extension,
 		ignores: argv.ignore,
-		extraTypeDef: argv.typedef
+		extraConfig: argv.extraconfig
 	}, {
 		verbose: argv.verbose,
 		dryrun: argv.dryrun
@@ -96,11 +96,11 @@ yargs
 		describe: 'Base dir to the input file',
 		type: 'string'
 	})
-	.option('t', {
-		alias: 'typedef',
+	.option('c', {
+		alias: 'extra-config',
 		demandOption: false,
-		default: '.eftypedef',
-		describe: 'Extra param type definition',
+		default: '.efextraconfig',
+		describe: 'Extra compiling config',
 		type: 'string'
 	})
 }, (argv) => {
@@ -108,7 +108,7 @@ yargs
 		input: argv.input,
 		output: argv.output,
 		base: argv.base,
-		extraTypeDef: argv.typedef
+		extraConfig: argv.extraconfig
 	}, {
 		verbose: argv.verbose,
 		dryrun: argv.dryrun
@@ -155,11 +155,11 @@ yargs
 		describe: 'folders to be ignored during scan',
 		type: 'array'
 	})
-	.option('t', {
-		alias: 'typedef',
+	.option('c', {
+		alias: 'extra-config',
 		demandOption: false,
-		default: '.eftypedef',
-		describe: 'Extra param type definition',
+		default: '.efextraconfig',
+		describe: 'Extra compiling config',
 		type: 'string'
 	})
 }, (argv) => {
@@ -170,7 +170,7 @@ yargs
 		seperate: argv.seperate,
 		extensionName: argv.extension,
 		ignores: argv.ignore,
-		extraTypeDef: argv.extra
+		extraConfig: argv.extraConfig
 	}, {
 		verbose: argv.verbose,
 		dryrun: argv.dryrun

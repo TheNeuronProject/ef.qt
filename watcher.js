@@ -4,7 +4,7 @@ const fs = require('fs-extra')
 const {scanEntry, compileSingleFile, getSeperatedOutputFilePathWithRightExtension} = require('./scanner')
 const {compile, getClassNameWithNameSpace, writeOutput} = require('./generator')
 
-const getHandlers = ({dir, debounce, outPath, seperate, ignores, extensionName, extraTypeDef}, {verbose, dryrun}) => {
+const getHandlers = ({dir, debounce, outPath, seperate, ignores, extensionName, extraConfig}, {verbose, dryrun}) => {
 	let debounceTimerID = 0
 	const changedFiles = new Set()
 	const removedFiles = new Set()
@@ -16,7 +16,7 @@ const getHandlers = ({dir, debounce, outPath, seperate, ignores, extensionName, 
 		regenerate = () => {
 			for (let file of changedFiles) {
 				const outFilePath = getSeperatedOutputFilePathWithRightExtension(file, extensionName)
-				compileSingleFile({input: path.join(dir, file), output: path.join(outPath, outFilePath), base: dir, extraTypeDef}, {verbose, dryrun})
+				compileSingleFile({input: path.join(dir, file), output: path.join(outPath, outFilePath), base: dir, extraConfig}, {verbose, dryrun})
 			}
 
 			for (let file of removedFiles) {
@@ -38,7 +38,7 @@ const getHandlers = ({dir, debounce, outPath, seperate, ignores, extensionName, 
 
 		regenerate = () => {
 			if (firstRun) {
-				scanEntry({dir, outPath, seperate, ignores, extensionName, extraTypeDef}, {verbose, dryrun, watch: true}, (e, {$results: _results, dest: _dest, currentVersion: _currentVersion}) => {
+				scanEntry({dir, outPath, seperate, ignores, extensionName, extraConfig}, {verbose, dryrun, watch: true}, (e, {$results: _results, dest: _dest, currentVersion: _currentVersion}) => {
 					if (e) return console.error(e)
 					$results = _results
 					dest = _dest
@@ -107,8 +107,8 @@ const getHandlers = ({dir, debounce, outPath, seperate, ignores, extensionName, 
 	return {fileUpdated, fileUnlinked}
 }
 
-const fileWatcher = ({dir, debounce, outPath, seperate, ignores, extensionName, extraTypeDef}, {verbose, dryrun}) => {
-	const {fileUpdated, fileUnlinked} = getHandlers({dir, debounce, outPath, seperate, ignores, extensionName, extraTypeDef}, {verbose, dryrun})
+const fileWatcher = ({dir, debounce, outPath, seperate, ignores, extensionName, extraConfig}, {verbose, dryrun}) => {
+	const {fileUpdated, fileUnlinked} = getHandlers({dir, debounce, outPath, seperate, ignores, extensionName, extraConfig}, {verbose, dryrun})
 
 	const watcher = chokidar.watch(['**/*.ef', '**/*.eft', '**/*.efml'], {
 		cwd: dir,
