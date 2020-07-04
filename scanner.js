@@ -50,7 +50,7 @@ const fileWalker = ({dir, outPath, seperate, ignores, extensionName}, {verbose, 
 		} else return next()
 	})
 
-	const writeResults = (e, {$results, dest, currentVersion, needsUpdate}) => {
+	const writeResults = (e, {$results, dest, currentVersion, needsUpdate} = {}) => {
 		if (e) {
 			if (cb) return cb(e)
 			return console.error(e)
@@ -74,7 +74,7 @@ const fileWalker = ({dir, outPath, seperate, ignores, extensionName}, {verbose, 
 			}
 		}
 
-		const writeAndCheckEnd = (e, {$results, dest, currentVersion}) => {
+		const writeAndCheckEnd = (e, {$results, dest, currentVersion} = {}) => {
 			if (e) {
 				if (cb) return cb(e)
 				return console.error(e)
@@ -121,7 +121,7 @@ const compileSingleFile = ({input, output, base, extraTypeDef}, {verbose, dryrun
 		console.log('[V] Generated namesace:', nameSpace)
 	}
 
-	const writeResults = (e, {$results, dest, currentVersion}) => {
+	const writeResults = (e, {$results, dest, currentVersion} = {}) => {
 		if (e) {
 			if (cb) return cb(e)
 			return console.error(e)
