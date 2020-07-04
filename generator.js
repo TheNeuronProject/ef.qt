@@ -180,10 +180,10 @@ const walkAst = ({$ast, $parent, $parentLayout, $data, $refs, $methods, $mountin
 		const [actualWidgetName, widgetClass] = guseeWidgetClass(type)
 		$widgets.push({type: actualWidgetName, parent: $parent, parentLayout: $parentLayout, extraProps: extraProps || {}, innerName, widgetClass})
 		if (actualWidgetName.startsWith('Q') && !NOAUTOINCLUDES.has(actualWidgetName)) $includes.add(`<${actualWidgetName}>`)
-		if (ref) $refs.push({actualWidgetName, innerName, name: ref, widgetClass})
+		if (ref) $refs.push({type: actualWidgetName, innerName, name: ref, widgetClass})
 
 		if (props) walkProps({props, innerName, $props, $data})
-		if (signals) walkSignals({signals, innerName, actualWidgetName, $methods})
+		if (signals) walkSignals({signals, innerName, type: actualWidgetName, $methods})
 
 		const isLayout = actualWidgetName.includes('Layout')
 
